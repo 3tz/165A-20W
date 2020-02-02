@@ -51,6 +51,10 @@ class Query:
     """
 
     def select(self, key, query_columns):
+        for i in range(np.size(self.table.key)):
+            if self.table.key[i] == key:
+                query_columns = self.table.columns[i]
+        return query_columns
         pass
 
     """
