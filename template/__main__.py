@@ -5,8 +5,12 @@ from random import choice, randrange
 
 # Student Id and 4 grades
 db = Database()
+
 grades_table = db.create_table('Grades', 5, 0)
+#--Creates table named grades with 5 columns, 0 according to comments is "Index of table key in columns".. what is that?
+
 query = Query(grades_table)
+#-- Allows for the query implementation to act on the table
 keys = []
 
 # Measuring Insert Performance
@@ -14,6 +18,9 @@ insert_time_0 = process_time()
 for i in range(0, 10000):
     query.insert(906659671 + i, 93, 0, 0, 0)
     keys.append(906659671 + i)
+#--
+
+
 insert_time_1 = process_time()
 
 print("Inserting 10k records took:  \t\t\t", insert_time_1 - insert_time_0)
