@@ -26,8 +26,12 @@ class Table:
         self.key = key
         self.num_columns = num_columns
         self.page_directory = {}
-        pass
+        self.tailpages = []
+        for index in range(num_columns):
+            newtailpage = Page()
+            self.tailpages.append(newtailpage)
+        self.base_page = Page()
 
+        pass
     def __merge(self):
         pass
- 
