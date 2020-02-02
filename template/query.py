@@ -1,15 +1,12 @@
 from template.table import Table, Record
 from template.index import Index
-
+import time
 
 class Query:
-    """
-    # Creates a Query object that can perform different queries on the specified table 
-    """
-
     def __init__(self, table):
+        """ Init Query to perform different queries on the specified table.
+        """
         self.table = table
-        pass
 
     """
     # internal Method
@@ -24,8 +21,30 @@ class Query:
     """
 
     def insert(self, *columns):
-        schema_encoding = '0' * self.table.num_columns
-        pass
+        """ Write the meta-columns & @columns
+        Indirection is NULL which we use 0 to represent.
+        Schema is in binary representation which has a default of 0000 or 0 in
+          base-10.
+        Thus, there's no need to write anything for these two meta-cols since
+           they are already zeros by default in the page.
+
+        Arguments:
+            - columns: list
+                Record to be written to the DB.
+        """
+        # TODO: add new page when page is full
+        
+        # RID starts from 1
+        self.table.base_pages[self.table.RID_COLUMN].write(
+            self.table.num_records+1)
+        # UNIX timestamp in seconds
+        self.table.base_pages[self.table.TIMESTAMP_COLUMN].write(
+            int(time.time()))
+        # Write the user columns
+        for i in range(len(columns)):
+            self.table.base_pages[i+self.table.N_META_COLS].write(columns[i])
+
+
 
     """
     # Read a record with specified key
@@ -42,8 +61,8 @@ class Query:
         pass
 
     """
-    :param start_range: int         # Start of the key range to aggregate 
-    :param end_range: int           # End of the key range to aggregate 
+    :param start_range: int         # Start of the key range to aggregate
+    :param end_range: int           # End of the key range to aggregate
     :param aggregate_columns: int  # Index of desired column to aggregate
     """
 
