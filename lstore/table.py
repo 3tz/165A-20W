@@ -73,36 +73,79 @@ class Table:
         self.num_records += 1
 
     def select(self, key, query_columns):
+        """ Read a record whose key matches the specified @key.
+
+        Arguments:
+            - key: int
+                Key of the records to look for.
+            - query_columns: list
+                List of boolean values for the columns to return.
+        Returns:
+            A list of Record objs that match the key.
         """
-        """
+        # TODO: improve efficiency
+        #       Reduce for-loops
+        # TODO: look through tail page after implmenting .update()
+        # TODO: for this MS, only find the first occurance
+
+        # Convert @query_columns to the actual column indices
         cols = [
             i+self.N_META_COLS for i in range(self.num_columns) \
                 if query_columns[i]]
 
         result = []
-        # TODO: improve efficiency
-        #       Reduce for-loops
-        # TODO: look through tail page after implmenting .update()
-        # TODO: for this MS, only find the first occurance
-        for p in self.partitions:
-            idxs = p.base_page[self.KEY_COLUMN].index(key, first_only=True)
-            # Found a match
-            if len(idxs) != 0:
-                i = idxs[0]
-                rid = int.from_bytes(
-                    p.base_page[self.KEY_COLUMN].data[i:i+8],
-                    byteorder='big',
-                    signed=False
-                )
-                columns = [
+        pairs = self.index(key, first_only=True)
+        # pair: (partition idx, page idx, RID)
+        for pair in pairs:
+            p = self.partitions[pair[0]]
+            columns = []
+            for col in cols:
+                columns.append(
                     int.from_bytes(
-                        p.base_page[col].data[i:i+8],
-                        byteorder='big',
-                        signed=False) for col in cols
-                ]
-                result.append(Record(rid, key, columns))
-                break
+                        p.base_page[col].data[pair[1]:pair[1]+8], 'big'))
+            result.append(Record(pair[2], key, columns))
 
+        return result
+
+
+    def update(self, key, *columns):
+        """ Update records with the specified key.
+
+        Arguments:
+            - key: int
+                Key of the records to look for.
+            - columns: list
+                List of values to update the column with. If element is None for
+                a column, no update will be made to it.
+        """
+        for p in self.partitions:
+            pass
+
+
+    def index(self, key, first_only=True):
+        """ Find the partition index and RIDs of records whose key matches @key.
+        Arguments:
+            value: int
+                Value to look for.
+            first_only: bool, default True
+                Whether to only look for the first occurance.
+        Returns:
+            A tuple containing the information below of the matched record.
+            (partition_idx, page_idx, RID)
+              - partition_idx: where the partition is in self.partitions
+              - page_idx: where the record is in the base page
+              - RID: the RID of the record.
+        """
+        result = []
+        for i, p in enumerate(self.partitions):
+            idxs = p.base_page[self.KEY_COLUMN].index(key, first_only)
+            for idx in idxs:
+                rid = int.from_bytes(
+                    p.base_page[self.KEY_COLUMN].data[idx:idx+8], 'big',
+                )
+                result.append((i, idx, rid))
+                if first_only:
+                    return result
         return result
 
     def add_new_partition(self, n=1):
