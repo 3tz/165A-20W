@@ -100,9 +100,7 @@ class Table:
             p = self.partitions[pair[0]]
             columns = []
             for col in cols:
-                columns.append(
-                    int.from_bytes(
-                        p.base_page[col].data[pair[1]:pair[1]+8], 'big'))
+                columns.append(p.base_page[col].read(pair[1]))
             result.append(Record(pair[2], key, columns))
 
         return result
@@ -140,9 +138,7 @@ class Table:
         for i, p in enumerate(self.partitions):
             idxs = p.base_page[self.KEY_COLUMN].index(key, first_only)
             for idx in idxs:
-                rid = int.from_bytes(
-                    p.base_page[self.KEY_COLUMN].data[idx:idx+8], 'big',
-                )
+                rid = p.base_page[self.KEY_COLUMN].read(idx)
                 result.append((i, idx, rid))
                 if first_only:
                     return result

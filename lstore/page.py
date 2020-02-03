@@ -42,6 +42,29 @@ class Page:
         self.num_records += 1
         return True
 
+    def read(self, idx):
+        """ Read value at given index.
+        Arguments:
+            - idx: int
+                Starting index of the value to be read
+        Returns:
+            Integer value with the indices of @idx:@idx+8
+        """
+        return int.from_bytes(self.data[idx:idx+8], 'big')
+
+    def update(self, value, idx):
+        """ Change a value to @value for a given starting index @idx.
+            This method does not check if the modification violates how l-store
+            operates. USE WITH CAUTION. Invalid modification can break the DB.
+
+        Arguments:
+            - value: int
+                Value to change to.
+            - idx: int
+                Starting index of the record
+        """
+        self.data[idx:idx+8] = value.to_bytes(self.SIZE_INT, 'big')
+
     def index(self, value, first_only=True):
         """ Find the starting index of records that match the given value in
             this page
