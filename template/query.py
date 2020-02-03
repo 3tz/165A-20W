@@ -21,42 +21,20 @@ class Query:
     """
 
     def insert(self, *columns):
-        """ Write the meta-columns & @columns
-        Indirection is NULL which we use 0 to represent.
-        Schema is in binary representation which has a default of 0000 or 0 in
-          base-10.
-        Thus, there's no need to write anything for these two meta-cols since
-           they are already zeros by default in the page.
-
-        Arguments:
-            - columns: list
-                Record to be written to the DB.
-        """
-        # TODO: add new page when page is full
-        
-        # RID starts from 1
-        self.table.base_pages[self.table.RID_COLUMN].write(
-            self.table.num_records+1)
-        # UNIX timestamp in seconds
-        self.table.base_pages[self.table.TIMESTAMP_COLUMN].write(
-            int(time.time()))
-        # Write the user columns
-        for i in range(len(columns)):
-            self.table.base_pages[i+self.table.N_META_COLS].write(columns[i])
-
-
+        self.table.insert(*columns)
 
     """
     # Read a record with specified key
     """
 
     def select(self, key, query_columns):
-        for i in range(np.size(self.table.key)):
-            if self.table.key[i] == key:
-                for j in range(np.size(self.table.num_columns)):
-                    #TODO: find out how to access the Record from table
-                    query_columns[j] = ##
-        return query_columns
+        # for i in range(np.size(self.table.key)):
+        #     if self.table.key[i] == key:
+        #         for j in range(np.size(self.table.num_columns)):
+        #             pass
+        #             #TODO: find out how to access the Record from table
+        #             # query_columns[j] = ##
+        # return query_columns
         pass
 
     """
@@ -64,11 +42,12 @@ class Query:
     """
 
     def update(self, key, *columns):
-        for i in range(np.size(self.table.key)):
-            if self.table.key[i] == key:
-                #TODO: find out where to update the Record in table
-                for j in range(np.size(self.table.num_columns)):
-                    ## = columns[j]
+        # for i in range(np.size(self.table.key)):
+        #     if self.table.key[i] == key:
+        #         #TODO: find out where to update the Record in table
+        #         for j in range(np.size(self.table.num_columns)):
+        #             pass
+        #             ## = columns[j]
         pass
 
     """
