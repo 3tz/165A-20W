@@ -1,5 +1,5 @@
-from template.page import *
-from template.partition import *
+from lstore.page import *
+from lstore.partition import *
 from time import time
 
 class Record:

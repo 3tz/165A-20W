@@ -1,4 +1,4 @@
-from template.page import *
+from lstore.page import *
 
 class Partition:
     def __init__(self, n_cols):
