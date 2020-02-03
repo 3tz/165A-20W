@@ -53,7 +53,9 @@ class Query:
     def select(self, key, query_columns):
         for i in range(np.size(self.table.key)):
             if self.table.key[i] == key:
-                query_columns = self.table.columns[i]
+                for j in range(np.size(self.table.num_columns)):
+                    #TODO: find out how to access the Record from table
+                    query_columns[j] = ##
         return query_columns
         pass
 
@@ -62,6 +64,11 @@ class Query:
     """
 
     def update(self, key, *columns):
+        for i in range(np.size(self.table.key)):
+            if self.table.key[i] == key:
+                #TODO: find out where to update the Record in table
+                for j in range(np.size(self.table.num_columns)):
+                    ## = columns[j]
         pass
 
     """
