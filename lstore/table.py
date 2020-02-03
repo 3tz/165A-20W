@@ -26,6 +26,7 @@ class Table:
                 Number of Columns excluding meta-columns
             - key: int
                 Index of table key in columns
+                Human language translation: which column has the keys
         """
         # CONSTANTS
         self.INDIRECTION_COLUMN = 0
@@ -33,8 +34,8 @@ class Table:
         self.TIMESTAMP_COLUMN = 2
         self.SCHEMA_ENCODING_COLUMN = 3
         self.N_META_COLS = 4
+        self.KEY_COLUMN = key + self.N_META_COLS
         self.name = name
-        self.key = key
         self.num_columns = num_columns
 
         self.num_records = 0 # keeps track of # of records & RID
@@ -70,6 +71,39 @@ class Table:
         for i in range(len(columns)):
             p.base_page[i+self.N_META_COLS].write(columns[i])
         self.num_records += 1
+
+    def select(self, key, query_columns):
+        """
+        """
+        cols = [
+            i+self.N_META_COLS for i in range(self.num_columns) \
+                if query_columns[i]]
+
+        result = []
+        # TODO: improve efficiency
+        #       Reduce for-loops
+        # TODO: look through tail page after implmenting .update()
+        # TODO: for this MS, only find the first occurance
+        for p in self.partitions:
+            idxs = p.base_page[self.KEY_COLUMN].index(key, first_only=True)
+            # Found a match
+            if len(idxs) != 0:
+                i = idxs[0]
+                rid = int.from_bytes(
+                    p.base_page[self.KEY_COLUMN].data[i:i+8],
+                    byteorder='big',
+                    signed=False
+                )
+                columns = [
+                    int.from_bytes(
+                        p.base_page[col].data[i:i+8],
+                        byteorder='big',
+                        signed=False) for col in cols
+                ]
+                result.append(Record(rid, key, columns))
+                break
+
+        return result
 
     def add_new_partition(self, n=1):
         """ Add a new partition to self.partitions

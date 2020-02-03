@@ -28,14 +28,7 @@ class Query:
     """
 
     def select(self, key, query_columns):
-        # for i in range(np.size(self.table.key)):
-        #     if self.table.key[i] == key:
-        #         for j in range(np.size(self.table.num_columns)):
-        #             pass
-        #             #TODO: find out how to access the Record from table
-        #             # query_columns[j] = ##
-        # return query_columns
-        pass
+        return self.table.select(key, query_columns)
 
     """
     # Update a record with specified key and columns

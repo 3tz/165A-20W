@@ -41,3 +41,29 @@ class Page:
         self.data[start_idx:end_idx] = value.to_bytes(self.SIZE_INT, 'big')
         self.num_records += 1
         return True
+
+    def index(self, value, first_only=True):
+        """ Find the starting index of records that match the given value in
+            this page
+        Arguments:
+            value: int
+                Value to look for.
+            first_only: bool, default True
+                Whether to only look for the first occurance.
+        Returns:
+            A list of starting indices of matched record
+        """
+        # TODO: need to revisit this part after implementing deletions where
+        #    we mark rows as deleted by giving them a specific value
+        value = value.to_bytes(self.SIZE_INT, 'big')
+        result = []
+
+        for i in range(self.num_records):
+            a = 8 * i
+            b = a + 8
+            if self.data[a:b] == value:
+                result.append(a)
+                if first_only:
+                    break
+
+        return result
