@@ -166,7 +166,7 @@ class Table:
 
     def __merge(self):
         pass
-        
+
     def sum(self, start_range, end_range, aggregate_column_index):
         """ Aggregates column data within the key range given.
 
@@ -182,6 +182,6 @@ class Table:
         query_columns[aggregate_column_index] = 1
         total = 0
         for keyval in range(start_range,end_range+1):
-            result = self.select(keval,query_columns)
+            result = self.select(keyval,query_columns)
             total += result[0].getcolumnvalue(aggregate_column_index)
         return total

@@ -24,6 +24,9 @@ class Query:
 
     def select(self, key, query_columns):
         return self.table.select(key, query_columns)
+        
+    def sum(self, start_range, end_range, aggregate_column_index):
+        return self.table.sum(start_range, end_range, aggregate_column_index)
 
     def update(self, key, *columns):
         self.table.update(key, *columns)
