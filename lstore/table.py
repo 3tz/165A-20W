@@ -183,7 +183,7 @@ class Table:
         query_columns = [0] * self.num_columns
         query_columns[aggregate_column_index] = 1
         total = 0
-        for keyval in range(start_range:end_range):
+        for keyval in range(start_range,end_range+1):
             result = self.select(keval,query_columns)
             total += result[0].getcolumnvalue(aggregate_column_index)
         return total
