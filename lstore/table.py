@@ -39,7 +39,11 @@ class Table:
         self.num_columns = num_columns
 
         self.num_records = 0 # keeps track of # of records & RID
-        self.partitions = [Partition(n_cols=num_columns+self.N_META_COLS)]
+        self.partitions = [
+            Partition(
+                n_cols=num_columns+self.N_META_COLS,
+                key_column=self.KEY_COLUMN)
+        ]
         # TODO: implement page_dir; currently it's just 512 recs / page
         self.page_directory = {}
 
@@ -55,21 +59,15 @@ class Table:
         # Thus, there's no need to write anything for these two meta-cols since
         #    they are already zeros by default in the page.
         # TODO: currently because of this^, these two cols .num_records are 0
-
+        data = [None, self.num_records+1, int(time()), None] # meta columns
+        data += columns   # user columns
         p = self.partitions[-1] # current partition
-        # RID starts from 1
-        success = p.base_page[self.RID_COLUMN].write(self.num_records+1)
+        success = p.write(*data)
         # Current Partition.base_page is full
         if not success:
-            self.add_new_partition()
+            p = self.add_new_partition()
             p = self.partitions[-1] # current partition
-            p.base_page[self.RID_COLUMN].write(self.num_records+1)
-
-        # UNIX timestamp in seconds
-        p.base_page[self.TIMESTAMP_COLUMN].write(int(time()))
-        # Write the user columns
-        for i in range(len(columns)):
-            p.base_page[i+self.N_META_COLS].write(columns[i])
+            p.write(*data)
         self.num_records += 1
 
     def select(self, key, query_columns):
@@ -89,22 +87,19 @@ class Table:
         # TODO: for this MS, only find the first occurance
 
         # Convert @query_columns to the actual column indices
-        cols = [
-            i+self.N_META_COLS for i in range(self.num_columns) \
-                if query_columns[i]]
+        cols = [0] * self.N_META_COLS + query_columns
 
         result = []
-        pairs = self.index(key, first_only=True)
-        # pair: (partition idx, page idx, RID)
-        for pair in pairs:
-            p = self.partitions[pair[0]]
-            columns = []
-            for col in cols:
-                columns.append(p.base_page[col].read(pair[1]))
-            result.append(Record(pair[2], key, columns))
+        matches = self.index(key, first_only=True)
+        # match: (partition_idx, [(page_idx, RID), ...])
+        for match in matches:
+            p = self.partitions[match[0]]
+            # tup: (page_idx, RID)
+            for tup in match[1]:
+                columns = p.read(tup[0], cols)
+                result.append(Record(tup[1], key, columns))
 
         return result
-
 
     def update(self, key, *columns):
         """ Update records with the specified key.
@@ -116,42 +111,58 @@ class Table:
                 List of values to update the column with. If element is None for
                 a column, no update will be made to it.
         """
-        for p in self.partitions:
-            pass
-
+        pass
+        # # pairs of record info that are matched
+        # # (partition_idx, page_idx, RID)
+        # pairs = self.index(key, first_only=True)
+        #
+        # for pair in pairs:
+        #     p = self.partitions[pair[0]]
+        #     p.base_page[self.INDIRECTION_COLUMN]
+        #
 
     def index(self, key, first_only=True):
-        """ Find the partition index and RIDs of records whose key matches @key.
+        """ Find partition & page index & RIDs of records whose key matches @key
         Arguments:
             value: int
                 Value to look for.
             first_only: bool, default True
                 Whether to only look for the first occurance.
         Returns:
-            A tuple containing the information below of the matched record.
-            (partition_idx, page_idx, RID)
+            A list containing the information below of the matched record:
+                [(partition_idx,
+                    [(page_idx, RID),
+                     (page_idx, RID), ...]),
+                 (partition_idx,
+                    [(page_idx, RID),
+                     (page_idx, RID), ...]),
+                  ... ]
               - partition_idx: where the partition is in self.partitions
-              - page_idx: where the record is in the base page
+              - page_idx: where the record is in base page for that partition
               - RID: the RID of the record.
         """
         result = []
+
         for i, p in enumerate(self.partitions):
-            idxs = p.base_page[self.KEY_COLUMN].index(key, first_only)
-            for idx in idxs:
-                rid = p.base_page[self.KEY_COLUMN].read(idx)
-                result.append((i, idx, rid))
+            tups = p.index(key, first_only)
+            # Item found in this partition
+            if len(tups) > 0:
+                result.append((i, tups))
                 if first_only:
                     return result
         return result
 
-    def add_new_partition(self, n=1):
+    def add_new_partition(self):
         """ Add a new partition to self.partitions
-        Arguments:
-            n: int, default 1
-                Number of pages to add to the tail
+        Return:
+            Reference to the newly created partition object
         """
-        n_cols = self.num_columns+self.N_META_COLS
-        self.partitions += [Partition(n_cols) for _ in range(n)]
+        # n_cols = self.num_columns+self.N_META_COLS
+        # self.partitions += [Partition(n_cols) for _ in range(n)]
+        self.partitions.append(
+            Partition(self.num_columns+self.N_META_COLS, self.KEY_COLUMN)
+        )
+        return self.partitions[-1]
 
     def __merge(self):
         pass
