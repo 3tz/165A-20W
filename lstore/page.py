@@ -16,31 +16,20 @@ class Page:
         self.SIZE_PAGE = 4096    # size of a page in bytes
         self.SIZE_INT = 8        # size of an int in bytes accepted
         self.MAX_RECORDS = 512   # Maximum number of records per page
-
-        self.num_records = 0
         self.data = bytearray(self.SIZE_PAGE)
 
-    def has_capacity(self):
+    def write(self, value, idx):
+        """ Write @value to a location with a starting index @idx.
+            This method is only an abstraction of low level operation, and it
+            DOES NOT check if the modification violates how l-store operates.
+            USE WITH CAUTION. Invalid modification can break the DB.
+        Arguments:
+            - value: int
+                Value to change to.
+            - idx: int
+                Starting index of the record
         """
-        Returns:
-            True if there's space in the page
-        """
-        return self.num_records < self.MAX_RECORDS
-
-    def write(self, value):
-        """ Write value to the next availale position
-
-        Returns:
-            True upon success; False if page is full
-        """
-        if not self.has_capacity():
-            return False
-
-        start_idx = self.num_records * 8
-        end_idx = start_idx + 8
-        self.data[start_idx:end_idx] = value.to_bytes(self.SIZE_INT, 'big')
-        self.num_records += 1
-        return True
+        self.data[idx:idx+8] = value.to_bytes(self.SIZE_INT, 'big')
 
     def read(self, idx):
         """ Read value at given index.
@@ -52,26 +41,15 @@ class Page:
         """
         return int.from_bytes(self.data[idx:idx+8], 'big')
 
-    def update(self, value, idx):
-        """ Change a value to @value for a given starting index @idx.
-            This method does not check if the modification violates how l-store
-            operates. USE WITH CAUTION. Invalid modification can break the DB.
-
-        Arguments:
-            - value: int
-                Value to change to.
-            - idx: int
-                Starting index of the record
-        """
-        self.data[idx:idx+8] = value.to_bytes(self.SIZE_INT, 'big')
-
-    def index(self, value, first_only=True):
+    def index(self, value, n, first_only=True):
         """ Find the starting index of records that match the given value in
             this page
         Arguments:
-            value: int
+            - value: int
                 Value to look for.
-            first_only: bool, default True
+            - n: int
+                The first @n records to search for
+            - first_only: bool, default True
                 Whether to only look for the first occurance.
         Returns:
             A list of starting indices of matched record
@@ -81,7 +59,7 @@ class Page:
         value = value.to_bytes(self.SIZE_INT, 'big')
         result = []
 
-        for i in range(self.num_records):
+        for i in range(n):
             a = 8 * i
             b = a + 8
             if self.data[a:b] == value:
