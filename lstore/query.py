@@ -35,4 +35,4 @@ class Query:
     """
 
     def sum(self, start_range, end_range, aggregate_column_index):
-        pass
+        self.table.sum(start_range, end_range, aggregate_column_index)
