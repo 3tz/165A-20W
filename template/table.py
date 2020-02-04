@@ -27,6 +27,9 @@ class Table:
         self.num_columns = num_columns
         self.page_directory = {}
         self.tailpages = []
+        """
+        Create a list of tail pages where the index
+        """
         for index in range(num_columns):
             newtailpage = Page()
             self.tailpages.append(newtailpage)

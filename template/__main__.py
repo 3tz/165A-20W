@@ -7,7 +7,7 @@ from random import choice, randrange
 db = Database()
 
 grades_table = db.create_table('Grades', 5, 0)
-#--Creates table named grades with 5 columns, 0 according to comments is "Index of table key in columns".. what is that?
+#--Creates table named grades with 5 columns, 0 is where the key is positioned in the table
 
 query = Query(grades_table)
 #-- Allows for the query implementation to act on the table
