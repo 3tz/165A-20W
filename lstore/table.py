@@ -58,7 +58,7 @@ class Table:
         #   base-10.
         # Thus, there's no need to write anything for these two meta-cols since
         #    they are already zeros by default in the page.
-        # TODO: currently because of this^, these two cols .num_records are 0
+
         data = [None, self.num_records+1, int(time()), None] # meta columns
         data += columns   # user columns
         p = self.partitions[-1] # current partition
