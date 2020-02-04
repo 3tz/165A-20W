@@ -65,9 +65,7 @@ class Table:
         success = p.write(*data)
         # Current Partition.base_page is full
         if not success:
-            p = self.add_new_partition()
-            p = self.partitions[-1] # current partition
-            p.write(*data)
+            self.add_new_partition().write(*data)
         self.num_records += 1
 
     def select(self, key, query_columns):
@@ -110,16 +108,19 @@ class Table:
             - columns: list
                 List of values to update the column with. If element is None for
                 a column, no update will be made to it.
+                Ex: [None, None, None, 1]
         """
-        pass
-        # # pairs of record info that are matched
-        # # (partition_idx, page_idx, RID)
-        # pairs = self.index(key, first_only=True)
-        #
-        # for pair in pairs:
-        #     p = self.partitions[pair[0]]
-        #     p.base_page[self.INDIRECTION_COLUMN]
-        #
+        # pairs of record info that are matched
+        #     0                      1
+        # (partition_idx, [(page_idx, RID), (page_idx, RID), ...])
+        matches = self.index(key, first_only=True)
+
+        for partition_idx, tups in matches:
+            p = self.partitions[partition_idx]
+            # tup: (page_idx, RID)
+            for tup in tups:
+                p.update(key, *columns)
+
 
     def index(self, key, first_only=True):
         """ Find partition & page index & RIDs of records whose key matches @key
@@ -166,7 +167,7 @@ class Table:
 
     def __merge(self):
         pass
-        
+
     def sum(self, start_range, end_range, aggregate_column_index):
         """ Aggregates column data within the key range given.
 
@@ -178,10 +179,11 @@ class Table:
             - aggregate_column_index: int
                 Index of the column to be aggregated
         """
-        query_columns = [0] * self.num_columns
-        query_columns[aggregate_column_index] = 1
-        total = 0
-        for keyval in range(start_range,end_range+1):
-            result = self.select(keyval,query_columns)
-            total += result[0].getcolumnvalue(aggregate_column_index)
-        return total
+        pass
+        # query_columns = [0] * self.num_columns
+        # query_columns[aggregate_column_index] = 1
+        # total = 0
+        # for keyval in range(start_range,end_range+1):
+        #     result = self.select(keyval,query_columns)
+        #     total += result[0].getcolumnvalue(aggregate_column_index)
+        # return total

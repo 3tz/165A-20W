@@ -1,5 +1,5 @@
 from lstore.page import *
-
+from time import time
 class Partition:
     def __init__(self, n_cols, key_column):
         """
@@ -28,6 +28,10 @@ class Partition:
             - key_column: int
                 Index of the column that has the keys.
         """
+        self.INDIRECTION_COLUMN = 0 # TODO: initialize them from Table
+        self.RID_COLUMN = 1
+        self.TIMESTAMP_COLUMN = 2
+        self.SCHEMA_ENCODING_COLUMN = 3
         self.N_BASE_REC = 0     # Number of base records
         self.N_TAIL_REC = 0     # Numer of tail records
         self.MAX_RECORDS = 512  # Maximum number of records
@@ -51,11 +55,7 @@ class Partition:
         """
         if not self.has_capacity():
             return False
-
-        for i, col in enumerate(columns):
-            if col:
-                self.base_page[i].write(col, self.N_BASE_REC*8)
-
+        self.__write(self.base_page, self.N_BASE_REC*8, *columns)
         self.N_BASE_REC += 1
         return True
 
@@ -91,19 +91,83 @@ class Partition:
         )
 
         for idx in idxs:
-            rid = self.base_page[self.KEY_COLUMN].read(idx)
+            rid = self.base_page[self.RID_COLUMN].read(idx)
             result.append((idx, rid))
             if first_only:
                 return result
         return result
 
-    def add_new_tail_page(self, n=1):
-        """ Add a new page to self.tail_pages
+    def update(self, key, *columns):
+        """ Update records with the specified key.
+
         Arguments:
-            n: int, default 1
-                Number of pages to add to the tail
+            - key: int
+                Key of the records to look for.
+            - columns: list
+                List of values to update the column with. If element is None for
+                a column, no update will be made to it.
+                Ex: [None, None, None, 14]
         """
-        self.tail_pages += [self.__create_new_page() for _ in range(n)]
+        # Get encoding in base-10
+        # Also, notice that encoding only covers userdefined columns
+        enc_bin_list = [0 if col == None else 1 for col in columns]
+        enc = sum(x << i for i, x in enumerate(reversed(enc_bin_list)))
+
+        tups = self.index(key)
+        # (page_idx, RID)
+        for idx_base, rid in tups:
+            rid = self.base_page[self.RID_COLUMN].read(idx_base)
+            tid = self.base_page[self.INDIRECTION_COLUMN].read(idx_base)
+            # add a new one if there's not enough space in self.tail_pages
+            if len(self.tail_pages) * self.MAX_RECORDS <= self.N_TAIL_REC:
+                self.__add_new_tail_page()
+
+            # if there's an indirection; aka tid isn't 0
+            if tid:
+                pass
+            # no indirection
+            else:
+                # intiialize tid as the tid of the latest slot in tail page
+                tid = self.N_TAIL_REC+1
+                ts = int(time())
+                # Base Page:
+                #   IDR    RID    TS     ENC   *usercolumns
+                #   tid    None   None   enc   None
+                cols = [tid, None, None, enc]
+                cols += [None] * len(columns)
+                self.__write(self.base_page, idx_base, *cols)
+
+                # Tail Page:
+                #   IDR    RID    TS     ENC   *usercolumns
+                #   rid    tid    ts     enc   columns
+                which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+                # meta_cols for tail_page
+                cols = (rid, tid, ts, enc) + columns
+                self.__write(self.tail_pages[which_tp], where_in_tp, *cols)
+
+            self.N_TAIL_REC += 1
+
+    def __add_new_tail_page(self):
+        """ Internal method for adding a new page to self.tail_pages
+        """
+        self.tail_pages.append(self.__create_new_page())
+
+    def __get_tail_page_idx(self, tid):
+        """ Internal Method for info for where to find a record in tail page
+            based on @tid.
+        Returns:
+            which_tail_page, where_in_that_tail_page_in_terms_of_starting_idx
+        """
+        rem = tid % self.MAX_RECORDS
+        return int((tid - rem) / self.MAX_RECORDS), (rem-1) * 8
+
+    def __write(self, single_page, page_idx, *columns):
+        """ Internal Method for writing @columns to @nth_rec position in
+            @single_page .
+        """
+        for i, col in enumerate(columns):
+            if col:
+                single_page[i].write(col, page_idx)
 
     def __create_new_page(self):
         """ Internal Method for creating a new blank page
