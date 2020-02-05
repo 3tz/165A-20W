@@ -142,8 +142,7 @@ class Partition:
             rid = self.base_page[self.RID_COLUMN].read(idx_base)
             tid = self.base_page[self.INDIRECTION_COLUMN].read(idx_base)
             # add a new one if there's not enough space in self.tail_pages
-            if len(self.tail_pages) * self.MAX_RECORDS <= self.N_TAIL_REC + 1:
-                print('added')
+            if len(self.tail_pages) * self.MAX_RECORDS <= self.N_TAIL_REC:
                 self.__add_new_tail_page()
 
             # if there's an indirection; aka tid isn't 0
@@ -159,7 +158,6 @@ class Partition:
                 cols += [None] * len(columns)
                 self.__write(self.base_page, idx_base, *cols)
 
-
                 # Tail Page:
                 # IDR in tail page that points to base page has a first bit of
                 # 1, so add 2**63 to rid
@@ -167,13 +165,6 @@ class Partition:
                 #   tid    new_tid    ts     enc   columns
                 which_tp, where_in_tp = self.__get_tail_page_idx(tid)
                 tp = self.tail_pages[which_tp]
-
-
-                #
-                # query_columns = [None] * self.N_META_COLS
-                # query_columns += [1 if x != None else 0 for x in columns]
-                # old_user_cols = self.read(idx_base, query_columns)
-
                 cols_to_write = [tid, new_tid, ts, new_enc]
 
                 # iterate through the new columns
@@ -224,8 +215,9 @@ class Partition:
         Returns:
             which_tail_page, where_in_that_tail_page_in_terms_of_starting_idx
         """
+        tid -= 1
         rem = tid % self.MAX_RECORDS
-        return int((tid - rem) / self.MAX_RECORDS), (rem-1) * 8
+        return int((tid - rem) / self.MAX_RECORDS), rem * 8
 
     def __write(self, single_page, page_idx, *columns):
         """ Internal Method for writing @columns to @nth_rec position in
