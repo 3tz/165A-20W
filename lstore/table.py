@@ -9,6 +9,9 @@ class Record:
         self.key = key
         self.columns = columns
 
+    def getcolumnvalue(self,index):
+        return self.columns[index]
+
 class Table:
     def __init__(self, name, num_columns, key):
         """
@@ -178,11 +181,15 @@ class Table:
             - aggregate_column_index: int
                 Index of the column to be aggregated
         """
-        pass
-        # query_columns = [0] * self.num_columns
-        # query_columns[aggregate_column_index] = 1
-        # total = 0
-        # for keyval in range(start_range,end_range+1):
-        #     result = self.select(keyval,query_columns)
-        #     total += result[0].getcolumnvalue(aggregate_column_index)
-        # return total
+        #pass
+        query_columns = [0] * self.num_columns
+        query_columns[aggregate_column_index] = 1
+        total = 0
+        for keyval in range(start_range,end_range+1):
+            results = self.select(keyval,query_columns)
+            if len(results) == 0 :
+                continue
+
+            result = results[0]
+            total += result.columns[0]
+        return total
