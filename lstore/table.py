@@ -81,7 +81,6 @@ class Table:
         """
         # TODO: improve efficiency
         #       Reduce for-loops
-        # TODO: look through tail page after implmenting .update()
         # TODO: for this MS, only find the first occurance
 
         # Convert @query_columns to the actual column indices

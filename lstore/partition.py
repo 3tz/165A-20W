@@ -39,6 +39,7 @@ class Partition:
         self.N_COLS = n_cols
         self.base_page = self.__create_new_page()
         self.tail_pages = [self.__create_new_page()]
+        self.MARK_1ST_BIT = 2**63
 
     def has_capacity(self):
         """
@@ -68,12 +69,33 @@ class Partition:
                 List of boolean values INCLUDING THE META-COLS for the columns
                 to return.
         """
-        # Convert @query_columns to the actual column indices
-        cols = [i for i in range(self.N_COLS) if query_columns[i]]
+        tid = self.base_page[self.INDIRECTION_COLUMN].read(idx)
 
         result = []
-        for col in cols:
-            result.append(self.base_page[col].read(idx))
+        # There's an indirection aka tid != 0
+        if tid:
+            which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+            tp = self.tail_pages[which_tp]
+            enc = tp[self.SCHEMA_ENCODING_COLUMN].read(where_in_tp)
+            enc = [int(i) for i in list(format(enc, '0%db' % self.N_COLS))]
+            for i, query_this_column in enumerate(query_columns):
+                if query_this_column:
+                    # If there has been an update, take it from TP
+                    if enc[i]:
+                        result.append(tp[i].read(where_in_tp))
+                    # if not, take it from BP
+                    else:
+                        result.append(self.base_page[i].read(idx))
+            # idr = tp[self.INDIRECTION_COLUMN].read(where_in_tp)
+
+        # No indirection: just read the base page
+        else:
+            for i, query_this_column in enumerate(query_columns):
+                if query_this_column:
+                    result.append(self.base_page[i].read(idx))
+
+            # else:
+            #     result.append(None)
 
         return result
 
@@ -138,11 +160,13 @@ class Partition:
                 self.__write(self.base_page, idx_base, *cols)
 
                 # Tail Page:
+                # IDR in tail page that points to base page has a first bit of
+                # 1, so add 2**63 to rid
                 #   IDR    RID    TS     ENC   *usercolumns
                 #   rid    tid    ts     enc   columns
                 which_tp, where_in_tp = self.__get_tail_page_idx(tid)
                 # meta_cols for tail_page
-                cols = (rid, tid, ts, enc) + columns
+                cols = (rid+self.MARK_1ST_BIT, tid, ts, enc) + columns
                 self.__write(self.tail_pages[which_tp], where_in_tp, *cols)
 
             self.N_TAIL_REC += 1
