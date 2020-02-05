@@ -31,7 +31,8 @@ class Partition:
         self.INDIRECTION_COLUMN = 0 # TODO: initialize them from Table
         self.RID_COLUMN = 1
         self.TIMESTAMP_COLUMN = 2
-        self.SCHEMA_ENCODING_COLUMN = 3
+        self.ENC_COLUMN = 3
+        self.N_META_COLS = 4
         self.N_BASE_REC = 0     # Number of base records
         self.N_TAIL_REC = 0     # Numer of tail records
         self.MAX_RECORDS = 512  # Maximum number of records
@@ -76,7 +77,7 @@ class Partition:
         if tid:
             which_tp, where_in_tp = self.__get_tail_page_idx(tid)
             tp = self.tail_pages[which_tp]
-            enc = tp[self.SCHEMA_ENCODING_COLUMN].read(where_in_tp)
+            enc = tp[self.ENC_COLUMN].read(where_in_tp)
             enc = [int(i) for i in list(format(enc, '0%db' % self.N_COLS))]
             for i, query_this_column in enumerate(query_columns):
                 if query_this_column:
@@ -94,8 +95,8 @@ class Partition:
                 if query_this_column:
                     result.append(self.base_page[i].read(idx))
 
-            # else:
-            #     result.append(None)
+                # else:
+                #     result.append(None)
 
         return result
 
@@ -141,12 +142,53 @@ class Partition:
             rid = self.base_page[self.RID_COLUMN].read(idx_base)
             tid = self.base_page[self.INDIRECTION_COLUMN].read(idx_base)
             # add a new one if there's not enough space in self.tail_pages
-            if len(self.tail_pages) * self.MAX_RECORDS <= self.N_TAIL_REC:
+            if len(self.tail_pages) * self.MAX_RECORDS <= self.N_TAIL_REC + 1:
+                print('added')
                 self.__add_new_tail_page()
 
             # if there's an indirection; aka tid isn't 0
             if tid:
-                pass
+                ts = int(time())
+                new_tid = self.N_TAIL_REC + 1
+                old_enc = self.base_page[self.ENC_COLUMN].read(idx_base)
+                new_enc = enc | old_enc
+                # Base Page:
+                #   IDR        RID    TS     ENC      *usercolumns
+                #   new_tid    None   None   new_enc   None
+                cols = [new_tid, None, None, new_enc]
+                cols += [None] * len(columns)
+                self.__write(self.base_page, idx_base, *cols)
+
+
+                # Tail Page:
+                # IDR in tail page that points to base page has a first bit of
+                # 1, so add 2**63 to rid
+                #   IDR    RID        TS     ENC   *usercolumns
+                #   tid    new_tid    ts     enc   columns
+                which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+                tp = self.tail_pages[which_tp]
+
+
+                #
+                # query_columns = [None] * self.N_META_COLS
+                # query_columns += [1 if x != None else 0 for x in columns]
+                # old_user_cols = self.read(idx_base, query_columns)
+
+                cols_to_write = [tid, new_tid, ts, new_enc]
+
+                # iterate through the new columns
+                for i, col in enumerate(columns):
+                    if col == None:
+                        # import ipdb; ipdb.set_trace()
+                        # write the old change to the new tail page
+                        col = tp[i + self.N_META_COLS].read(where_in_tp)
+
+                    cols_to_write.append(col)
+
+                which_tp, where_in_tp = self.__get_tail_page_idx(new_tid)
+
+                self.__write(self.tail_pages[which_tp], where_in_tp, *cols_to_write)
+
             # no indirection
             else:
                 # intiialize tid as the tid of the latest slot in tail page
