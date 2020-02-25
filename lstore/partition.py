@@ -38,7 +38,7 @@ class Partition:
         self.MAX_RECORDS = 512  # Maximum number of records
         self.KEY_COLUMN = key_column
         self.N_COLS = n_cols
-        self.base_page = self.__create_new_page()
+        self.base_pages = [self.__create_new_page()]
         self.tail_pages = [self.__create_new_page()]
         self.MARK_1ST_BIT = 2**63
 
@@ -203,6 +203,11 @@ class Partition:
                 self.__write(self.tail_pages[which_tp], where_in_tp, *cols)
 
             self.N_TAIL_REC += 1
+
+    def __add_new_base_page(self):
+        """ Internal method for adding a new page to self.base_pages
+        """
+        self.base_pages.append(self.__create_new_page())
 
     def __add_new_tail_page(self):
         """ Internal method for adding a new page to self.tail_pages

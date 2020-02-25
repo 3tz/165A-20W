@@ -1,15 +1,16 @@
 from lstore.table import Table
+from lstore.bufferpool import Bufferpool
 
 class Database():
     def __init__(self):
         self.tables = {}
-        pass
+        self.file = self.open()
 
-    def open(self):
-        pass
+    def open(self, path):
+        return open(path, 'r+')
 
     def close(self):
-        pass
+        self.file = close()
 
     def create_table(self, name, num_columns, key):
         """ Creates a new table
@@ -35,3 +36,9 @@ class Database():
         """
         if name in self.tables.keys():
             del self.tables[name]
+
+   """
+    # Returns table with the passed name
+    """
+    def get_table(self, name):
+        return self.tables[name]

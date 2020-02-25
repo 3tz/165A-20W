@@ -1,5 +1,6 @@
 from lstore.page import *
 from lstore.partition import *
+from lstore.bufferpool import *
 from time import time
 
 class Record:
@@ -8,9 +9,6 @@ class Record:
         self.rid = rid
         self.key = key
         self.columns = columns
-
-    def getcolumnvalue(self,index):
-        return self.columns[index]
 
 class Table:
     def __init__(self, name, num_columns, key):
@@ -49,6 +47,13 @@ class Table:
         ]
         # TODO: implement page_dir; currently it's just 512 recs / page
         self.page_directory = {}
+        self.NUM_OF_PARTITIONS_BUFFERPOOL = 5
+        self.buffer_pool = [
+            Bufferpool(
+                num_of_pages=self.NUM_OF_PARTITIONS_BUFFERPOOL
+            )
+        ]
+
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -181,15 +186,16 @@ class Table:
             - aggregate_column_index: int
                 Index of the column to be aggregated
         """
-        #pass
+        pass
         query_columns = [0] * self.num_columns
         query_columns[aggregate_column_index] = 1
         total = 0
         for keyval in range(start_range,end_range+1):
-            results = self.select(keyval,query_columns)
-            if len(results) == 0 :
+            result = self.select(keyval,query_columns)
+            if len(result) == 0
                 continue
 
-            result = results[0]
+            result = result[0]
             total += result.columns[0]
+
         return total
