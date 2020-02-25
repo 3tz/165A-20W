@@ -10,13 +10,47 @@ class Page:
         int0:   byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
         int1:   byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
                 ...
-        int255: byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
+        int512: byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
         """
         # TODO: move these to config file
         self.SIZE_PAGE = 4096    # size of a page in bytes
         self.SIZE_INT = 8        # size of an int in bytes accepted
         self.MAX_RECORDS = 512   # Maximum number of records per page
         self.data = bytearray(self.SIZE_PAGE)
+
+    def __setitem__(self, key, value):
+        """ Overload [] operator for assignment.
+            This method is only an abstraction of low level operation, and it
+            DOES NOT check if the modification violates how l-store operates.
+            USE WITH CAUTION. Invalid modification can break the DB.
+        Arguments:
+            - key: int; 0 <= key < MAX_RECORDS
+                Write @value to int@key.
+            - value: int
+                Value to change to.
+        Raise:
+            IndexError: if @key not in range
+        """
+        if 0 <= key < self.MAX_RECORDS:
+            self.data[key*8:(key+1)*8] = value.to_bytes(self.SIZE_INT, 'big')
+        else:
+            raise IndexError
+
+    def __getitem__(self, key):
+        """ Overload [] operator for reading. Read value at given @key.
+        Arguments:
+            - key: int
+                Value of int@key to be returned
+        Returns:
+            Integer value of int@key.
+
+        Raise:
+            IndexError: if @key not in range
+        """
+        if 0 <= key < self.MAX_RECORDS:
+            return int.from_bytes(self.data[key * 8:(key + 1) * 8], 'big')
+        else:
+            raise IndexError
 
     def write(self, value, idx):
         """ Write @value to a location with a starting index @idx.
