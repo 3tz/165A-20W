@@ -2,8 +2,8 @@ from lstore.partition import *
 from time import time
 from lstore.index import Index
 
-class Record:
 
+class Record:
     def __init__(self, rid, key, columns):
         self.rid = rid
         self.key = key
@@ -141,41 +141,10 @@ class Table:
         for rid, old_rec in zip(rids, old_recs):
             which_p, where_in_p = self.__rid2pos(rid)
             p = self.partitions[which_p]
-            p.update(key, *columns)
+            p.update(where_in_p, rid, *columns)
             if key_change:
                 new_val = columns[indexing_col]
                 self.ind.update(indexing_col, old_rec.key, new_val, rid)
-
-    # def index(self, key, first_only=True):
-    #     """ Find partition & page index & RIDs of records whose key matches @key
-    #     Arguments:
-    #         value: int
-    #             Value to look for.
-    #         first_only: bool, default True
-    #             Whether to only look for the first occurance.
-    #     Returns:
-    #         A list containing the information below of the matched record:
-    #             [(partition_idx,
-    #                 [(page_idx, RID),
-    #                  (page_idx, RID), ...]),
-    #              (partition_idx,
-    #                 [(page_idx, RID),
-    #                  (page_idx, RID), ...]),
-    #               ... ]
-    #           - partition_idx: where the partition is in self.partitions
-    #           - page_idx: where the record is in base page for that partition
-    #           - RID: the RID of the record.
-    #     """
-    #     result = []
-    #
-    #     for i, p in enumerate(self.partitions):
-    #         tups = p.index(key, first_only)
-    #         # Item found in this partition
-    #         if len(tups) > 0:
-    #             result.append((i, tups))
-    #             if first_only:
-    #                 return result
-    #     return result
 
     def add_new_partition(self):
         """ Add a new partition to self.partitions

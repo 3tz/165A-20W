@@ -93,26 +93,7 @@ class Partition:
 
         return result
 
-    def index(self, key, first_only=True):
-        """
-        Returns:
-            A list of tuples containing the information below of matched records
-            [(page_idx, RID), (page_idx, RID), ...]
-              - page_idx: where the record is in the base page
-              - RID: the RID of the record.
-        """
-        result = []
-
-        values = [self.base_page[i, self.COL_KEY] for i in range(self.count_base_rec)]
-        idxs = [idx for idx, val in enumerate(values) if val == key]
-        for idx in idxs:
-            rid = self.base_page[idx, Config.COL_RID]
-            result.append((idx, rid))
-            if first_only:
-                return result
-        return result
-
-    def update(self, key, *columns):
+    def update(self, idx, rid, *columns):
         """ Update records with the specified key.
 
         Arguments:
@@ -128,70 +109,66 @@ class Partition:
         enc_bin_list = [0 if col is None else 1 for col in columns]
         enc = sum(x << i for i, x in enumerate(reversed(enc_bin_list)))
 
-        tups = self.index(key)
-        # (page_idx, RID)
-        for idx_base, rid in tups:
-            rid = self.base_page[idx_base, Config.COL_RID]
-            tid = self.base_page[idx_base, Config.COL_IDR]
-            # add a new one if there's not enough space in self.tail_pages
-            if len(self.tail_pages)*Config.MAX_RECORDS <= self.count_tail_rec:
-                self.tail_pages.append(Page(self.N_COLS))
+        tid = self.base_page[idx, Config.COL_IDR]
+        # add a new one if there's not enough space in self.tail_pages
+        if len(self.tail_pages)*Config.MAX_RECORDS <= self.count_tail_rec:
+            self.tail_pages.append(Page(self.N_COLS))
 
-            # if there's an indirection; aka tid isn't 0
-            if tid:
-                ts = int(time())
-                new_tid = self.count_tail_rec + 1
-                old_enc = self.base_page[idx_base, Config.COL_ENC]
-                new_enc = enc | old_enc
-                # Base Page:
-                #   IDR        RID    TS     ENC      *usercolumns
-                #   new_tid    None   None   new_enc   None
-                cols = [new_tid, None, None, new_enc]
-                cols += [None] * len(columns)
-                self.base_page[idx_base] = cols
+        # if there's an indirection; aka tid isn't 0
+        if tid:
+            ts = int(time())
+            new_tid = self.count_tail_rec + 1
+            old_enc = self.base_page[idx, Config.COL_ENC]
+            new_enc = enc | old_enc
+            # Base Page:
+            #   IDR        RID    TS     ENC      *usercolumns
+            #   new_tid    None   None   new_enc   None
+            cols = [new_tid, None, None, new_enc]
+            cols += [None] * len(columns)
+            self.base_page[idx] = cols
 
-                # Tail Page:
-                # IDR in tail page that points to base page has a first bit of
-                # 1, so add 2**63 to rid
-                #   IDR    RID        TS     ENC   *usercolumns
-                #   tid    new_tid    ts     enc   columns
-                which_tp, where_in_tp = self.__get_tail_page_idx(tid)
-                tp = self.tail_pages[which_tp]
-                cols_to_write = [tid, new_tid, ts, new_enc]
+            # Tail Page:
+            # IDR in tail page that points to base page has a first bit of
+            # 1, so add 2**63 to rid
+            #   IDR    RID        TS     ENC   *usercolumns
+            #   tid    new_tid    ts     enc   columns
+            which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+            tp = self.tail_pages[which_tp]
+            cols_to_write = [tid, new_tid, ts, new_enc]
 
-                # iterate through the new columns
-                for i, col in enumerate(columns):
-                    if col is None:
-                        # import ipdb; ipdb.set_trace()
-                        # write the old change to the new tail page
-                        col = tp[where_in_tp, i + Config.N_META_COLS]
-                    cols_to_write.append(col)
+            # iterate through the new columns
+            for i, col in enumerate(columns):
+                if col is None:
+                    # import ipdb; ipdb.set_trace()
+                    # write the old change to the new tail page
+                    col = tp[where_in_tp, i + Config.N_META_COLS]
+                cols_to_write.append(col)
 
-                which_tp, where_in_tp = self.__get_tail_page_idx(new_tid)
-                self.tail_pages[which_tp][where_in_tp] = cols_to_write
-            # no indirection
-            else:
-                # intiialize tid as the tid of the latest slot in tail page
-                tid = self.count_tail_rec + 1
-                ts = int(time())
-                # Base Page:
-                #   IDR    RID    TS     ENC   *usercolumns
-                #   tid    None   None   enc   None
-                cols = [tid, None, None, enc]
-                cols += [None] * len(columns)
-                self.base_page[idx_base] = cols
+            which_tp, where_in_tp = self.__get_tail_page_idx(new_tid)
+            self.tail_pages[which_tp][where_in_tp] = cols_to_write
+        # no indirection
+        else:
+            # intiialize tid as the tid of the latest slot in tail page
+            tid = self.count_tail_rec + 1
+            ts = int(time())
+            # Base Page:
+            #   IDR    RID    TS     ENC   *usercolumns
+            #   tid    None   None   enc   None
+            cols = [tid, None, None, enc]
+            cols += [None] * len(columns)
+            self.base_page[idx] = cols
 
-                # Tail Page:
-                # IDR in tail page that points to base page has a first bit of
-                # 1, so add 2**63 to rid
-                #   IDR    RID    TS     ENC   *usercolumns
-                #   rid    tid    ts     enc   columns
-                which_tp, where_in_tp = self.__get_tail_page_idx(tid)
-                # meta_cols for tail_page
-                cols = (rid+Config.MARK_1ST_BIT, tid, ts, enc) + columns
-                self.tail_pages[which_tp][where_in_tp] = cols
+            # Tail Page:
+            # IDR in tail page that points to base page has a first bit of
+            # 1, so add 2**63 to rid
+            #   IDR    RID    TS     ENC   *usercolumns
+            #   rid    tid    ts     enc   columns
+            which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+            # meta_cols for tail_page
+            cols = (rid+Config.MARK_1ST_BIT, tid, ts, enc) + columns
+            self.tail_pages[which_tp][where_in_tp] = cols
 
-            self.count_tail_rec += 1
+        self.count_tail_rec += 1
 
     def __get_tail_page_idx(self, tid):
         """ Internal Method for info for where to find a record in tail page
