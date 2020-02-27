@@ -1,4 +1,3 @@
-# from lstore.mempage import *
 from lstore.page import Page
 from time import time
 from lstore.config import Config

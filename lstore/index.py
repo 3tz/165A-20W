@@ -1,5 +1,6 @@
 from BTrees.IOBTree import IOBTree
 from itertools import chain
+from lstore.config import Config
 
 
 class Index:
@@ -14,7 +15,7 @@ class Index:
         # One index for each table. All are empty initially.
         self.I = [None] * table.num_columns
         # create indexing for the key column upon initialization
-        self.create_index(table.KEY_COLUMN)
+        self.create_index(table.COL_KEY - Config.N_META_COLS)
 
     def insert(self, column, value, rid):
         """ Insert @rid with key @value.

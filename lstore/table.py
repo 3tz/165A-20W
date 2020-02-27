@@ -1,7 +1,6 @@
-from lstore.mempage import *
 from lstore.partition import *
 from time import time
-
+from lstore.index import Index
 
 class Record:
 
@@ -34,18 +33,18 @@ class Table:
                 Human language translation: which column has the keys
         """
         # CONSTANTS
-        self.KEY_COLUMN = key + Config.N_META_COLS
+        self.num_columns = num_columns  # constant; lower b/c of tester calls
+        self.COL_KEY = key + Config.N_META_COLS
+        self.N_TOTAL_COLS = num_columns + Config.N_META_COLS
         self.name = name
-        self.num_columns = num_columns
 
         self.num_records = 0  # keeps track of # of records & RID
         self.partitions = [
             Partition(
                 n_cols=num_columns+Config.N_META_COLS,
-                key_column=self.KEY_COLUMN)
+                key_column=self.COL_KEY)
         ]
-        # TODO: implement page_dir; currently it's just 512 recs / page
-        self.page_directory = {}
+        self.ind = Index(self)
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -61,13 +60,17 @@ class Table:
 
         data = [None, self.num_records+1, int(time()), None] # meta columns
         data += columns   # user columns
-        p = self.partitions[-1] # current partition
+        p = self.partitions[-1]  # current partition
         success = p.write(*data)
         # Current Partition.base_page is full
         if not success:
             self.add_new_partition().write(*data)
         self.num_records += 1
 
+        for i, val in enumerate(columns):
+            self.ind.insert(i, val, self.num_records)
+
+    # TODO: add column argument
     def select(self, key, query_columns):
         """ Read a record whose key matches the specified @key.
 
@@ -82,19 +85,29 @@ class Table:
         # TODO: improve efficiency
         #       Reduce for-loops
         # TODO: for this MS, only find the first occurance
-
+        column = self.COL_KEY
+        column -= Config.N_META_COLS
         # Convert @query_columns to the actual column indices
         cols = [0] * Config.N_META_COLS + query_columns
 
         result = []
-        matches = self.index(key, first_only=True)
+        rids = self.ind.locate(column, key)
+
+        # matches = self.index(key, first_only=True)
         # match: (partition_idx, [(page_idx, RID), ...])
-        for match in matches:
-            p = self.partitions[match[0]]
-            # tup: (page_idx, RID)
-            for tup in match[1]:
-                columns = p.read(tup[0], cols)
-                result.append(Record(tup[1], key, columns))
+        # for match in matches:
+        for rid in rids:
+            # which_p = int(rid / Config.MAX_RECORDS)
+            # where_in_p = rid % Config.MAX_RECORDS
+            which_p, where_in_p = self.__rid2pos(rid)
+            p = self.partitions[which_p]
+            result.append(Record(rid, key, p.read(where_in_p, cols)))
+
+            # p = self.partitions[match[0]]
+            # # tup: (page_idx, RID)
+            # for tup in match[1]:
+            #     columns = p.read(tup[0], cols)
+            #     result.append(Record(tup[1], key, columns))
 
         return result
 
@@ -109,47 +122,60 @@ class Table:
                 a column, no update will be made to it.
                 Ex: [None, None, None, 1]
         """
-        # pairs of record info that are matched
-        #     0                      1
-        # (partition_idx, [(page_idx, RID), (page_idx, RID), ...])
-        matches = self.index(key, first_only=True)
+        # TODO: ADD @column
+        # TODO: update indexing for other columns
+        indexing_col = self.COL_KEY
+        indexing_col -= Config.N_META_COLS
+        if columns[indexing_col] is not None:
+            key_change = True
+        else:
+            key_change = False
 
-        for partition_idx, tups in matches:
-            p = self.partitions[partition_idx]
-            # tup: (page_idx, RID)
-            for tup in tups:
-                p.update(key, *columns)
+        # TODO: currently slect is called even when there's no key modification
+        cols = [0] * self.num_columns
+        cols[indexing_col] = 1
+        old_recs = self.select(key, cols)
+        rids = self.ind.locate(indexing_col, key)
 
-    def index(self, key, first_only=True):
-        """ Find partition & page index & RIDs of records whose key matches @key
-        Arguments:
-            value: int
-                Value to look for.
-            first_only: bool, default True
-                Whether to only look for the first occurance.
-        Returns:
-            A list containing the information below of the matched record:
-                [(partition_idx,
-                    [(page_idx, RID),
-                     (page_idx, RID), ...]),
-                 (partition_idx,
-                    [(page_idx, RID),
-                     (page_idx, RID), ...]),
-                  ... ]
-              - partition_idx: where the partition is in self.partitions
-              - page_idx: where the record is in base page for that partition
-              - RID: the RID of the record.
-        """
-        result = []
+        assert(len(old_recs) == len(rids))
+        for rid, old_rec in zip(rids, old_recs):
+            which_p, where_in_p = self.__rid2pos(rid)
+            p = self.partitions[which_p]
+            p.update(key, *columns)
+            if key_change:
+                new_val = columns[indexing_col]
+                self.ind.update(indexing_col, old_rec.key, new_val, rid)
 
-        for i, p in enumerate(self.partitions):
-            tups = p.index(key, first_only)
-            # Item found in this partition
-            if len(tups) > 0:
-                result.append((i, tups))
-                if first_only:
-                    return result
-        return result
+    # def index(self, key, first_only=True):
+    #     """ Find partition & page index & RIDs of records whose key matches @key
+    #     Arguments:
+    #         value: int
+    #             Value to look for.
+    #         first_only: bool, default True
+    #             Whether to only look for the first occurance.
+    #     Returns:
+    #         A list containing the information below of the matched record:
+    #             [(partition_idx,
+    #                 [(page_idx, RID),
+    #                  (page_idx, RID), ...]),
+    #              (partition_idx,
+    #                 [(page_idx, RID),
+    #                  (page_idx, RID), ...]),
+    #               ... ]
+    #           - partition_idx: where the partition is in self.partitions
+    #           - page_idx: where the record is in base page for that partition
+    #           - RID: the RID of the record.
+    #     """
+    #     result = []
+    #
+    #     for i, p in enumerate(self.partitions):
+    #         tups = p.index(key, first_only)
+    #         # Item found in this partition
+    #         if len(tups) > 0:
+    #             result.append((i, tups))
+    #             if first_only:
+    #                 return result
+    #     return result
 
     def add_new_partition(self):
         """ Add a new partition to self.partitions
@@ -157,7 +183,7 @@ class Table:
             Reference to the newly created partition object
         """
         self.partitions.append(
-            Partition(self.num_columns+Config.N_META_COLS, self.KEY_COLUMN)
+            Partition(self.num_columns + Config.N_META_COLS, self.COL_KEY)
         )
         return self.partitions[-1]
 
@@ -185,3 +211,13 @@ class Table:
             result = results[0]
             total += result.columns[0]
         return total
+
+    def __rid2pos(self, rid):
+        """ Internal Method for info for where to find a record in base page
+            based on @rid.
+        Returns:
+            which_partition, where_in_partition
+        """
+        rid -= 1
+        rem = rid % Config.MAX_RECORDS
+        return int((rid - rem) / Config.MAX_RECORDS), rem
