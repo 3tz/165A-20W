@@ -1,6 +1,7 @@
-from lstore.page import *
+from lstore.mempage import *
 from lstore.partition import *
 from time import time
+
 
 class Record:
 
@@ -11,6 +12,7 @@ class Record:
 
     def getcolumnvalue(self,index):
         return self.columns[index]
+
 
 class Table:
     def __init__(self, name, num_columns, key):
@@ -32,19 +34,14 @@ class Table:
                 Human language translation: which column has the keys
         """
         # CONSTANTS
-        self.INDIRECTION_COLUMN = 0
-        self.RID_COLUMN = 1
-        self.TIMESTAMP_COLUMN = 2
-        self.SCHEMA_ENCODING_COLUMN = 3
-        self.N_META_COLS = 4
-        self.KEY_COLUMN = key + self.N_META_COLS
+        self.KEY_COLUMN = key + Config.N_META_COLS
         self.name = name
         self.num_columns = num_columns
 
-        self.num_records = 0 # keeps track of # of records & RID
+        self.num_records = 0  # keeps track of # of records & RID
         self.partitions = [
             Partition(
-                n_cols=num_columns+self.N_META_COLS,
+                n_cols=num_columns+Config.N_META_COLS,
                 key_column=self.KEY_COLUMN)
         ]
         # TODO: implement page_dir; currently it's just 512 recs / page
@@ -57,8 +54,8 @@ class Table:
                 Record to be written to the DB.
         """
         # Indirection is NULL which we use 0 to represent.
-        # Schema is in binary representation which has a default of 0000 or 0 in
-        #   base-10.
+        # Schema is in binary representation which has a default of 0000 or 0
+        #   in base-10.
         # Thus, there's no need to write anything for these two meta-cols since
         #    they are already zeros by default in the page.
 
@@ -87,7 +84,7 @@ class Table:
         # TODO: for this MS, only find the first occurance
 
         # Convert @query_columns to the actual column indices
-        cols = [0] * self.N_META_COLS + query_columns
+        cols = [0] * Config.N_META_COLS + query_columns
 
         result = []
         matches = self.index(key, first_only=True)
@@ -122,7 +119,6 @@ class Table:
             # tup: (page_idx, RID)
             for tup in tups:
                 p.update(key, *columns)
-
 
     def index(self, key, first_only=True):
         """ Find partition & page index & RIDs of records whose key matches @key
@@ -160,10 +156,8 @@ class Table:
         Return:
             Reference to the newly created partition object
         """
-        # n_cols = self.num_columns+self.N_META_COLS
-        # self.partitions += [Partition(n_cols) for _ in range(n)]
         self.partitions.append(
-            Partition(self.num_columns+self.N_META_COLS, self.KEY_COLUMN)
+            Partition(self.num_columns+Config.N_META_COLS, self.KEY_COLUMN)
         )
         return self.partitions[-1]
 
@@ -181,15 +175,13 @@ class Table:
             - aggregate_column_index: int
                 Index of the column to be aggregated
         """
-        #pass
         query_columns = [0] * self.num_columns
         query_columns[aggregate_column_index] = 1
         total = 0
-        for keyval in range(start_range,end_range+1):
-            results = self.select(keyval,query_columns)
+        for keyval in range(start_range, end_range+1):
+            results = self.select(keyval, query_columns)
             if len(results) == 0 :
                 continue
-
             result = results[0]
             total += result.columns[0]
         return total

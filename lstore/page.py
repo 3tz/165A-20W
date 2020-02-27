@@ -2,6 +2,14 @@ from lstore.mempage import MemPage
 
 
 class Page:
+    """ Sample API:
+    base_page = Page(5)
+    base_page[0] = [1,2,3,4,5]      # write 5 columns to row 0
+    base_page[0] = [None]*4 + [10]  # update last column to a value of 10
+    base_page[0, 4]                 # read single value at row 0 column 4
+    base_page[0, [1,1,0,0,1]]        # read 1+ values at row 0 column 0, 1, 4
+    """
+
     def __init__(self, n_cols):
         self.data = [MemPage() for _ in range(n_cols)]
         self.N_COLS = n_cols
@@ -26,10 +34,20 @@ class Page:
         """ Overload [] operator for reading. Read value at given @key.
         Arguments:
             - key: tup
-                Ex: p[0, [0, 0, 0, 1, 1]] returns values of the last two
-                  columns at row 0.
-                key[0]: row id of the values to read
-                key[1]: binary list that indicates the columns to read.
+                Allows multiple or single query.
+                Multi query:
+                    - key[0]: int
+                        row id of the values to read
+                    - key[1]: list
+                        binary list that indicates the columns to read.
+                    Ex: p[0, [0, 0, 0, 1, 1]] returns values of the last two
+                      columns at row 0.
+                Single query:
+                    - key[0]: int
+                        row id of the values to read
+                    - key[1]: int
+                        index of the column to read from.
+                    Ex: p[0, 1] returns values of column with index 1 at row 0
         Returns:
             List of data for the requested columns at given row.
             None is used for columns that aren't requested.
@@ -37,7 +55,17 @@ class Page:
         Raise:
             IndexError: if @key not in range
         """
-        row, bin_query = key
-        return [self.data[col][row] if q else None
-                for col, q in enumerate(bin_query)]
+        row, idx = key
 
+        if type(idx) is list:
+            # idx is a binary query list, so go through and return a list
+            return [self.data[col][row] if q else None
+                    for col, q in enumerate(idx)]
+        else:
+            # idx is just a single integer indicating which column to retrieve
+            return self.data[idx][row]
+
+    def __len__(self):
+        """ Number of columns in the page
+        """
+        return len(self.data)

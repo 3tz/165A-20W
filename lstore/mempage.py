@@ -13,11 +13,7 @@ class MemPage:
                 ...
         int512: byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
         """
-        # TODO: move these to config file
-        self.SIZE_PAGE = 4096  # size of a page in bytes
-        self.SIZE_INT = 8  # size of an int in bytes accepted
-        self.MAX_RECORDS = 512  # Maximum number of records per page
-        self.data = bytearray(self.SIZE_PAGE)
+        self.data = bytearray(Config.SIZE_PAGE)
 
     def __setitem__(self, key, value):
         """ Overload [] operator for assignment.
@@ -32,9 +28,9 @@ class MemPage:
         Raise:
             IndexError: if @key not in range
         """
-        if 0 <= key < self.MAX_RECORDS:
-            self.data[key * 8:(key + 1) * 8] = value.to_bytes(self.SIZE_INT,
-                                                              'big')
+        if 0 <= key < Config.MAX_RECORDS:
+            self.data[key * 8:(key + 1) * 8] = value.to_bytes(
+                Config.SIZE_INT, 'big')
         else:
             raise IndexError
 
@@ -49,7 +45,7 @@ class MemPage:
         Raise:
             IndexError: if @key not in range
         """
-        if 0 <= key < self.MAX_RECORDS:
+        if 0 <= key < Config.MAX_RECORDS:
             return int.from_bytes(self.data[key * 8:(key + 1) * 8], 'big')
         else:
             raise IndexError
@@ -65,7 +61,7 @@ class MemPage:
             - idx: int
                 Starting index of the record
         """
-        self.data[idx:idx + 8] = value.to_bytes(self.SIZE_INT, 'big')
+        self.data[idx:idx + 8] = value.to_bytes(Config.SIZE_INT, 'big')
 
     def read(self, idx):
         """ Read value at given index.
@@ -76,31 +72,3 @@ class MemPage:
             Integer value with the indices of @idx:@idx+8
         """
         return int.from_bytes(self.data[idx:idx + 8], 'big')
-
-    def index(self, value, n, first_only=True):
-        """ Find the starting index of records that match the given value in
-            this page
-        Arguments:
-            - value: int
-                Value to look for.
-            - n: int
-                The first @n records to search for
-            - first_only: bool, default True
-                Whether to only look for the first occurance.
-        Returns:
-            A list of starting indices of matched record
-        """
-        # TODO: need to revisit this part after implementing deletions where
-        #    we mark rows as deleted by giving them a specific value
-        value = value.to_bytes(self.SIZE_INT, 'big')
-        result = []
-
-        for i in range(n):
-            a = 8 * i
-            b = a + 8
-            if self.data[a:b] == value:
-                result.append(a)
-                if first_only:
-                    break
-
-        return result
