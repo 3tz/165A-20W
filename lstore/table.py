@@ -167,7 +167,32 @@ class Table:
         )
         return self.partitions[-1]
 
+    def __merge_partition(self, rid):
+        partitionRid = rid
+        partitionId = 0
+        while(partitionRid > 512):
+            partitionRid -= 512
+            partitionId += 1
+        
+        new_base_page = self.partitions[partitionId].based_page()
+        #find the latest tail record
+        tail_size = len(self.partitions[partitionId].tail_pages[0])
+        ##num_set_tail = len(self.partitions[partitionId].tail_pages) / self.partitions[partitionId].N_COLS
+        get_enc = [0,0,1,0].append([0]* (self.partitions[partitionId].N_COLS - self.partitions[partitionId].N_META_COLS))
+        new_col = [0]*self.partitions[partitionId].N_COLS
+        while tail_size >= 0:
+            tb[rid, get_enc]
+            tail_size = tail_size -1
+
+
+
+        pass
+
     def __merge(self):
+        #when to perform merge
+        #iterate from the latest tail page
+        
+        self.partitions
         pass
 
     def sum(self, start_range, end_range, aggregate_column_index):
@@ -185,7 +210,7 @@ class Table:
         query_columns = [0] * self.num_columns
         query_columns[aggregate_column_index] = 1
         total = 0
-        for keyval in range(start_range,end_range+1):
+        for keyval in range(start_range, end_range+1):
             results = self.select(keyval,query_columns)
             if len(results) == 0 :
                 continue
