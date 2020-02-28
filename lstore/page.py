@@ -1,70 +1,71 @@
-from lstore.config import *
+from lstore.mempage import MemPage
+
 
 class Page:
-    def __init__(self):
-        """
-        All data are assumed to be 64-bit (8-byte) integers.
-        A page has a size of 4096 bytes, thus, it can hold 512 ints which can be
-        visualized as a flatten 512x8 matrix where each row represents an int:
+    """ Sample API:
+    base_page = Page(5)
+    base_page[0] = [1,2,3,4,5]      # write 5 columns to row 0
+    base_page[0] = [None]*4 + [10]  # update last column to a value of 10
+    base_page[0, 4]                 # read single value at row 0 column 4
+    base_page[0, [1,1,0,0,1]]        # read 1+ values at row 0 column 0, 1, 4
+    """
 
-        int0:   byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
-        int1:   byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
-                ...
-        int255: byte0 byte1 byte2 byte3 byte4 byte5 byte6 byte7
-        """
-        # TODO: move these to config file
-        self.SIZE_PAGE = 4096    # size of a page in bytes
-        self.SIZE_INT = 8        # size of an int in bytes accepted
-        self.MAX_RECORDS = 512   # Maximum number of records per page
-        self.data = bytearray(self.SIZE_PAGE)
+    def __init__(self, n_cols):
+        self.data = [MemPage() for _ in range(n_cols)]
+        self.N_COLS = n_cols
 
-    def write(self, value, idx):
-        """ Write @value to a location with a starting index @idx.
-            This method is only an abstraction of low level operation, and it
-            DOES NOT check if the modification violates how l-store operates.
-            USE WITH CAUTION. Invalid modification can break the DB.
+    def __setitem__(self, key, value):
+        """ Overload [] operator for assignment.
+        Note: does not check for invalid inputs for @value, i.e., neg vals can
+        break DB.
         Arguments:
-            - value: int
+            - key: int; 0 <= key < MAX_RECORDS
+                Write @value to int@key.
+            - value: list
                 Value to change to.
-            - idx: int
-                Starting index of the record
+        Raise:
+            IndexError: if @key not in range
         """
-        self.data[idx:idx+8] = value.to_bytes(self.SIZE_INT, 'big')
+        for i, val in enumerate(value):
+            if val is not None:
+                self.data[i][key] = val
 
-    def read(self, idx):
-        """ Read value at given index.
+    def __getitem__(self, key):
+        """ Overload [] operator for reading. Read value at given @key.
         Arguments:
-            - idx: int
-                Starting index of the value to be read
+            - key: tup
+                Allows multiple or single query.
+                Multi query:
+                    - key[0]: int
+                        row id of the values to read
+                    - key[1]: list
+                        binary list that indicates the columns to read.
+                    Ex: p[0, [0, 0, 0, 1, 1]] returns values of the last two
+                      columns at row 0.
+                Single query:
+                    - key[0]: int
+                        row id of the values to read
+                    - key[1]: int
+                        index of the column to read from.
+                    Ex: p[0, 1] returns values of column with index 1 at row 0
         Returns:
-            Integer value with the indices of @idx:@idx+8
+            List of data for the requested columns at given row.
+            None is used for columns that aren't requested.
+            Ex: [None, None, None, 92333, 5132]
+        Raise:
+            IndexError: if @key not in range
         """
-        return int.from_bytes(self.data[idx:idx+8], 'big')
+        row, idx = key
 
-    def index(self, value, n, first_only=True):
-        """ Find the starting index of records that match the given value in
-            this page
-        Arguments:
-            - value: int
-                Value to look for.
-            - n: int
-                The first @n records to search for
-            - first_only: bool, default True
-                Whether to only look for the first occurance.
-        Returns:
-            A list of starting indices of matched record
+        if type(idx) is list:
+            # idx is a binary query list, so go through and return a list
+            return [self.data[col][row] if q else None
+                    for col, q in enumerate(idx)]
+        else:
+            # idx is just a single integer indicating which column to retrieve
+            return self.data[idx][row]
+
+    def __len__(self):
+        """ Number of columns in the page
         """
-        # TODO: need to revisit this part after implementing deletions where
-        #    we mark rows as deleted by giving them a specific value
-        value = value.to_bytes(self.SIZE_INT, 'big')
-        result = []
-
-        for i in range(n):
-            a = 8 * i
-            b = a + 8
-            if self.data[a:b] == value:
-                result.append(a)
-                if first_only:
-                    break
-
-        return result
+        return len(self.data)
