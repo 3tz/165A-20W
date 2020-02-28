@@ -2,6 +2,7 @@ from lstore.table import Table, Record
 from lstore.index import Index
 import time
 
+
 class Query:
     """ This is just a wrapper class of Table methods. See table.py for actual
         implementation of each method.
@@ -22,8 +23,8 @@ class Query:
     def insert(self, *columns):
         self.table.insert(*columns)
 
-    def select(self, key, query_columns):
-        return self.table.select(key, query_columns)
+    def select(self, key, indexing_col, query_columns):
+        return self.table.select(key, indexing_col, query_columns)
 
     def update(self, key, *columns):
         self.table.update(key, *columns)

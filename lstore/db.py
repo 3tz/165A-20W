@@ -1,11 +1,12 @@
 from lstore.table import Table
 
+
 class Database():
     def __init__(self):
         self.tables = {}
         pass
 
-    def open(self):
+    def open(self, path):
         pass
 
     def close(self):

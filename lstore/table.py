@@ -9,7 +9,7 @@ class Record:
         self.key = key
         self.columns = columns
 
-    def getcolumnvalue(self,index):
+    def getcolumnvalue(self, index):
         return self.columns[index]
 
 
@@ -44,7 +44,7 @@ class Table:
                 n_cols=num_columns+Config.N_META_COLS,
                 key_column=self.COL_KEY)
         ]
-        self.ind = Index(self)
+        self.index = Index(self)
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -68,10 +68,11 @@ class Table:
         self.num_records += 1
 
         for i, val in enumerate(columns):
-            self.ind.insert(i, val, self.num_records)
+            if self.index.indexed_eh(i):
+                self.index.insert(i, val, self.num_records)
 
     # TODO: add column argument
-    def select(self, key, query_columns):
+    def select(self, key, indexing_col, query_columns):
         """ Read a record whose key matches the specified @key.
 
         Arguments:
@@ -85,29 +86,15 @@ class Table:
         # TODO: improve efficiency
         #       Reduce for-loops
         # TODO: for this MS, only find the first occurance
-        column = self.COL_KEY
-        column -= Config.N_META_COLS
         # Convert @query_columns to the actual column indices
         cols = [0] * Config.N_META_COLS + query_columns
 
         result = []
-        rids = self.ind.locate(column, key)
+        rids = self.index.locate(indexing_col, key)
 
-        # matches = self.index(key, first_only=True)
-        # match: (partition_idx, [(page_idx, RID), ...])
         # for match in matches:
         for rid in rids:
-            # which_p = int(rid / Config.MAX_RECORDS)
-            # where_in_p = rid % Config.MAX_RECORDS
-            which_p, where_in_p = self.__rid2pos(rid)
-            p = self.partitions[which_p]
-            result.append(Record(rid, key, p.read(where_in_p, cols)))
-
-            # p = self.partitions[match[0]]
-            # # tup: (page_idx, RID)
-            # for tup in match[1]:
-            #     columns = p.read(tup[0], cols)
-            #     result.append(Record(tup[1], key, columns))
+            result.append(Record(rid, key, self[rid, cols]))
 
         return result
 
@@ -122,10 +109,8 @@ class Table:
                 a column, no update will be made to it.
                 Ex: [None, None, None, 1]
         """
-        # TODO: ADD @column
         # TODO: update indexing for other columns
-        indexing_col = self.COL_KEY
-        indexing_col -= Config.N_META_COLS
+        indexing_col = self.COL_KEY - Config.N_META_COLS
         if columns[indexing_col] is not None:
             key_change = True
         else:
@@ -134,8 +119,8 @@ class Table:
         # TODO: currently slect is called even when there's no key modification
         cols = [0] * self.num_columns
         cols[indexing_col] = 1
-        old_recs = self.select(key, cols)
-        rids = self.ind.locate(indexing_col, key)
+        old_recs = self.select(key, indexing_col, cols)
+        rids = self.index.locate(indexing_col, key)
 
         assert(len(old_recs) == len(rids))
         for rid, old_rec in zip(rids, old_recs):
@@ -144,7 +129,7 @@ class Table:
             p.update(where_in_p, rid, *columns)
             if key_change:
                 new_val = columns[indexing_col]
-                self.ind.update(indexing_col, old_rec.key, new_val, rid)
+                self.index.update(indexing_col, old_rec.key, new_val, rid)
 
     def add_new_partition(self):
         """ Add a new partition to self.partitions
@@ -170,11 +155,12 @@ class Table:
             - aggregate_column_index: int
                 Index of the column to be aggregated
         """
+        indexing_col = self.COL_KEY - Config.N_META_COLS
         query_columns = [0] * self.num_columns
         query_columns[aggregate_column_index] = 1
         total = 0
         for keyval in range(start_range, end_range+1):
-            results = self.select(keyval, query_columns)
+            results = self.select(keyval, indexing_col, query_columns)
             if len(results) == 0 :
                 continue
             result = results[0]
@@ -190,3 +176,15 @@ class Table:
         rid -= 1
         rem = rid % Config.MAX_RECORDS
         return int((rid - rem) / Config.MAX_RECORDS), rem
+
+    def __getitem__(self, rid):
+        """
+        Return the records
+        """
+        if type(rid) is tuple:
+            rid, cols = rid
+        else:
+            cols = [1] * self.N_TOTAL_COLS
+
+        which_p, where_in_p = self.__rid2pos(rid)
+        return self.partitions[which_p].read(where_in_p, cols)
