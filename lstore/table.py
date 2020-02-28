@@ -71,7 +71,6 @@ class Table:
             if self.index.indexed_eh(i):
                 self.index.insert(i, val, self.num_records)
 
-    # TODO: add column argument
     def select(self, key, indexing_col, query_columns):
         """ Read a record whose key matches the specified @key.
 
@@ -83,8 +82,6 @@ class Table:
         Returns:
             A list of Record objs that match the key.
         """
-        # TODO: improve efficiency
-        #       Reduce for-loops
         # TODO: for this MS, only find the first occurance
         # Convert @query_columns to the actual column indices
         cols = [0] * Config.N_META_COLS + query_columns

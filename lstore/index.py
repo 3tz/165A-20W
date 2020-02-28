@@ -33,9 +33,7 @@ class Index:
             - rid: int
                 RID of the value in the database.
         """
-        # need to read from DB for those columns that just initialized indexing
-        if len(self.to_be_indexed) > 0:
-            pass
+        self.__index_from_db()
 
         if self.I[column] is not None:
             self.counts[column] += 1
@@ -58,6 +56,7 @@ class Index:
             - rid: int
                 RID of the value in the database.
         """
+        self.__index_from_db()
         if self.I[column]:
             self.I[column][value].remove(rid)
 
@@ -86,6 +85,7 @@ class Index:
         Returns:
             List of RIDs of all records that match @value
         """
+        self.__index_from_db()
         try:
             return self.I[column][value]
         except KeyError:
@@ -114,10 +114,11 @@ class Index:
     def create_index(self, column):
         """ Create index on column @column
         """
-        self.I[column] = IOBTree()
-        # Queue the column to be indexed
-        if max(self.counts) != 0:
-            self.to_be_indexed.append(column)
+        if self.I[column] is None:
+            self.I[column] = IOBTree()
+            # Queue the column to be indexed
+            if max(self.counts) != 0:
+                self.to_be_indexed.append(column)
 
     def drop_index(self, column):
         """ Delete index on column @column
@@ -125,4 +126,30 @@ class Index:
         self.I[column] = None
 
     def indexed_eh(self, column):
+        """ whether @column is indexed
+        """
         return self.I[column] is not None
+
+    def __index_from_db(self):
+        """ add data from db to indexing
+        """
+        # need to read from DB for those columns that just initialized indexing
+        if len(self.to_be_indexed) > 0:
+            self.to_be_indexed.sort()
+            query_cols = [0] * Config.N_META_COLS
+            query_cols += [
+                1 if i in self.to_be_indexed else 0
+                for i in range(self.table.num_columns)
+            ]
+            for rid in range(1, max(self.counts)+1):
+                for i, val in enumerate(self.table[rid, query_cols]):
+                    column = self.to_be_indexed[i]
+                    self.counts[column] += 1
+                    try:
+                        # assume value exists
+                        self.I[column][val].append(rid)
+                    except KeyError:
+                        # value doesn't yet exist, so create one
+                        self.I[column][val] = [rid]
+
+        self.to_be_indexed = []
