@@ -1,6 +1,8 @@
+from lstore.bufferpool import Bufferpool
 from lstore.partition import *
-from time import time
 from lstore.index import Index
+from time import time
+import os
 
 
 class Record:
@@ -14,7 +16,7 @@ class Record:
 
 
 class Table:
-    def __init__(self, name, num_columns, key):
+    def __init__(self, name, num_columns, key, path):
         """
         Table consists of 4 meta-columns (indirection, RID, Timestamp, &
         schema encoding) and user-defined columns.
@@ -31,6 +33,8 @@ class Table:
             - key: int
                 Index of table key in columns
                 Human language translation: which column has the keys
+            - path: str
+                Path to the root dir of the DB on the disk
         """
         # CONSTANTS
         self.num_columns = num_columns  # constant; lower b/c of tester calls
@@ -39,11 +43,14 @@ class Table:
         self.name = name
 
         self.num_records = 0  # keeps track of # of records & RID
-        self.partitions = [
-            Partition(
-                n_cols=num_columns+Config.N_META_COLS,
-                key_column=self.COL_KEY)
-        ]
+
+        self.buffer = Bufferpool(
+            Config.SIZE_BUFFER,
+            self.N_TOTAL_COLS,
+            self.COL_KEY,
+            os.path.join(path, name)
+        )
+
         self.index = Index(self)
 
     def insert(self, *columns):
@@ -60,7 +67,7 @@ class Table:
 
         data = [None, self.num_records+1, int(time()), None] # meta columns
         data += columns   # user columns
-        p = self.partitions[-1]  # current partition
+        p = self.buffer[-1]  # current partition
         success = p.write(*data)
         # Current Partition.base_page is full
         if not success:
@@ -122,7 +129,7 @@ class Table:
         assert(len(old_recs) == len(rids))
         for rid, old_rec in zip(rids, old_recs):
             which_p, where_in_p = self.__rid2pos(rid)
-            p = self.partitions[which_p]
+            p = self.buffer[which_p]
             p.update(where_in_p, rid, *columns)
             if key_change:
                 new_val = columns[indexing_col]
@@ -133,10 +140,11 @@ class Table:
         Return:
             Reference to the newly created partition object
         """
-        self.partitions.append(
-            Partition(self.num_columns + Config.N_META_COLS, self.COL_KEY)
-        )
-        return self.partitions[-1]
+        self.buffer.new_partition()
+        # self.buffer.append(
+        #     Partition(self.num_columns + Config.N_META_COLS, self.COL_KEY)
+        # )
+        return self.buffer[-1]
 
     def __merge(self):
         pass
@@ -184,4 +192,4 @@ class Table:
             cols = [1] * self.N_TOTAL_COLS
 
         which_p, where_in_p = self.__rid2pos(rid)
-        return self.partitions[which_p].read(where_in_p, cols)
+        return self.buffer[which_p].read(where_in_p, cols)

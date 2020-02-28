@@ -14,6 +14,8 @@ class Config:
     SIZE_PAGE = 4096  # size of a page in bytes
     SIZE_INT = 8  # size of an int in bytes accepted
     MAX_RECORDS = 512  # Maximum number of records per page
+    # bufferpool
+    SIZE_BUFFER = 4  # number of partitions in the bufferpool
 
 
 def init():

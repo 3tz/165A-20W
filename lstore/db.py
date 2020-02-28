@@ -1,13 +1,16 @@
+import os
 from lstore.table import Table
 
 
 class Database():
     def __init__(self):
         self.tables = {}
-        pass
+        self.path = None
 
     def open(self, path):
-        pass
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.path = path
 
     def close(self):
         pass
@@ -24,7 +27,7 @@ class Database():
         Returns:
             Table obj of the table that was added to the DB.
         """
-        table = Table(name, num_columns, key)
+        table = Table(name, num_columns, key, self.path)
         self.tables[name] = table
         return table
 
