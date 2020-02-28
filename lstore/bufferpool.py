@@ -9,95 +9,148 @@ import pickle
 class Bufferpool:
     def __init__(self, size, n_cols, key_column, path):
         self.PATH = path # path of the table
+        if not os.path.exists(path):
+            os.makedirs(path)
+
         self.MAX_PARTITIONS = size
         self.N_TOTAL_COLS = n_cols
         self.COL_KEY = key_column
 
-        self.count = 0  # number of partitions that are in the BP
         # Vals:
         #    - Partition obj: partition is in bufferpool
         #    - None: partition on disk
+        # EX: MAX_PARTITIONS = 2
+        # [None, None, Partition obj, Partition obj, None]
         self.partitions = []
-        # Vals:
-        #    - 1: if dirty; 0: clean
-        self.dirty = []
 
         # index of the partitions in the buffer sorted by least recently used
-        # Length = MAX_PARTITIONS
-        # [3, 5, 4] means partition 3 was least recently used
+        # This is the core of tracking what partitions are in the BP
+        # Max Length = MAX_PARTITIONS
+        # EX: means partition 3 was least recently used
+        # [3, 2]
         self.LRU = []
-
+        # TODO: implmenet PIN PAGE
         self.pin_pages = {}
+
         self.new_partition()
 
     def __getitem__(self, idx_part):
-        p = self.partitions[idx_part]
-
-        if p is None:
-            # not currently in bufferpool
-            # kick one out and load it in
-            idx_evict = self.__recently_used(idx_part)
-            self.__evict(idx_evict)  # it should assign None to the evicted
-
-            with open(os.path.join(self.PATH, str(idx_part)), 'rb') as f:
-                p = pickle.load(f)
-
-            self.partitions[idx_part] = p
+        """ Return the partition with index @idx_part
+            If partition not in BP
+                partition will be added to buffer pool
+            if partition is in
+                idx_part in LRU move to the end
+            X LRU
+            X dirty[idx]
+            X Partitions[idx]
+        """
+        # trying to access a partition that doesn't exist
+        if idx_part >= len(self.partitions):
+            raise IndexError
+        # If already in the LRU array, move it to the end
+        # Don't need to care about limit since we are not adding things here
+        if idx_part in self.LRU:
+            self.LRU.remove(idx_part)
+            self.LRU.append(idx_part)
+            assert(len(self.LRU) <= self.MAX_PARTITIONS)
+        # not in the LRU, load from the disk
         else:
-            return p
+            # if buffer limit reached, evict
+            if len(self.LRU) == self.MAX_PARTITIONS:
+                self.__evict()
+            # buffer has space now, just append to the end
+            self.LRU.append(idx_part)
+            with open(os.path.join(self.PATH, str(idx_part)), 'rb') as f:
+                self.partitions[idx_part] = pickle.load(f)
+
+        return self.partitions[idx_part]
+        # # not currently in bufferpool; load it in
+        # # This also implies idx_part is not in LRU
+        # if p is None:
+        #     # partition limit reached, so evict
+        #     if len(self.LRU) == self.MAX_PARTITIONS:
+        #         self.__evict()
+        #         self.LRU.append(idx_part)
+
 
     def new_partition(self):
-        # create a partition first and store it in BP
-        p = Partition(n_cols=self.N_TOTAL_COLS, key_column=self.COL_KEY)
-        self.dirty.append(1)
-        self.partitions.append(p)
-        self.count += 1
-
-        # now decide how if we need to evict
-        if self.__full():
-            # BP full; have to evict
-            idx_part = len(self.partitions)
-            idx_evict = self.__recently_used(idx_part)
-            self.__evict(idx_evict)
-            self.count -= 1
-        else:
-            pass
-
-    def __recently_used(self, idx_part):
+        """ Add a new partition to the DB. New partition will be added to the
+        BP and marked as dirty. If BP's limit is reached, the LRU partition
+        will be evicted.
         """
-        note: should be called after adding partition
+        idx_part = len(self.partitions)
 
-        # return the partition index that needs to be evicted
-        # if no need to evict, None is returned
-        """
-        if self.__full():
-            if idx_part not in self.LRU:
-                idx_evict = self.LRU[0]
-                self.LRU.append(idx_part)
-                self.LRU = self.LRU[1:]
-                return idx_evict
-            else:
-                self.LRU.remove(idx_part)
-                self.LRU.append(idx_part)
-        else:
-            if idx_part not in self.LRU:
-                self.LRU.append(idx_part)
-            else:
-                self.LRU.remove(idx_part)
-                self.LRU.append(idx_part)
-        return
+        # It is definitely not in the LRU, no need to check
+        # if buffer limit reached, evict
+        if len(self.LRU) == self.MAX_PARTITIONS:
+            self.__evict()
+        self.LRU.append(idx_part)
+        # Now BP has space, add the new partition
+        self.partitions.append(
+            Partition(n_cols=self.N_TOTAL_COLS, key_column=self.COL_KEY))
 
-    def __evict(self, idx_evict):
+        # # max partition reached, evict
+        # if len(self.LRU) == self.MAX_PARTITIONS:
+        #     idx_evict = self.LRU.pop(0)
+        #     if self.partitions[idx_evict].is_dirty():
+        #         # it's dirty; merge
+        #         pass
+        #     self.partitions[idx_evict].set_clean()
+        #     # write to disk
+        #     with open(os.path.join(self.PATH, str(idx_evict)), 'wb') as f:
+        #         pickle.dump(self.paritions[idx_evict], f)
+        #     self.partitions[idx_evict] = None
+        #
+        # # Now BP has space, add the new partition and mark it as dirty
+        # self.partitions.append(
+        #     Partition(n_cols=self.N_TOTAL_COLS, key_column=self.COL_KEY))
+
+    def __evict(self):
+        """ Evict the LRU partition.
+            - idx = LRU[0] is removed;
+            - partitions[idx] is marked as clean
+                - write to disk if dirty
+            - partitions[idx] will be replaced with None
         """
-        """
-        if self.dirty[idx_evict]:
-            # merge i guess
-            pass
-        else:
+        idx_evict = self.LRU.pop(0)
+        if self.partitions[idx_evict].is_dirty():
+            # TODO: ADD MERGE HERE BEFORE WRITING TO DISK
+            self.partitions[idx_evict].set_clean()
+            # it's dirty; # write to disk
             with open(os.path.join(self.PATH, str(idx_evict)), 'wb') as f:
                 pickle.dump(self.paritions[idx_evict], f)
-        self.dirty[idx_evict] = 0
         self.partitions[idx_evict] = None
 
-    def __full(self):
-        return self.count >= self.MAX_PARTITIONS
+    # def __access_partition(self, idx_part):
+    #     """ access a partition with @idx_part.
+    #         If partition not in BP
+    #             partition will be added to buffer pool
+    #         if partition is in
+    #             idx_part in LRU move to the end
+    #         X LRU
+    #         X dirty[idx]
+    #         X Partitions[idx]
+    #     """
+    #     # trying to access a partition that doesn't exist
+    #     if idx_part >= len(self.partitions):
+    #         raise IndexError
+    #     # If already in the LRU, move to the end
+    #     # Don't need to care about limit since we are not adding things
+    #     if idx_part in self.LRU:
+    #         self.LRU.remove(idx_part)
+    #         self.LRU.append(idx_part)
+    #         assert(len(self.LRU) <= self.MAX_PARTITIONS)
+    #     # not in the LRU, load from the disk
+    #     else:
+    #         # if buffer limit reached, evict
+    #         if len(self.LRU) == self.MAX_PARTITIONS:
+    #             self.__evict()
+    #         # buffer has space now, just append to the end
+    #         self.LRU.append(idx_part)
+    #         with open(os.path.join(self.PATH, str(idx_part)), 'rb') as f:
+    #             self.partitions[idx_part] = pickle.load(f)
+
+
+
+    # def __full(self):
+    #     return self.count >= self.MAX_PARTITIONS

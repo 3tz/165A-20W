@@ -33,8 +33,10 @@ class Partition:
         """
         self.N_COLS = n_cols
         self.COL_KEY = key_column
+
         self.count_base_rec = 0     # Number of base records
         self.count_tail_rec = 0     # Number of tail records
+        self.__dirty = True         # Whether there has been a modification
 
         self.base_page = Page(n_cols)
         self.tail_pages = [Page(n_cols)]
@@ -57,6 +59,7 @@ class Partition:
 
         self.base_page[self.count_base_rec] = columns
         self.count_base_rec += 1
+        self.__dirty = True
         return True
 
     def read(self, idx, query_columns):
@@ -104,6 +107,7 @@ class Partition:
                 a column, no update will be made to it.
                 Ex: [None, None, None, 14]
         """
+        self.__dirty = True
         # Get encoding in base-10
         # Also, notice that encoding only covers userdefined columns
         enc_bin_list = [0 if col is None else 1 for col in columns]
@@ -169,6 +173,12 @@ class Partition:
             self.tail_pages[which_tp][where_in_tp] = cols
 
         self.count_tail_rec += 1
+
+    def is_dirty(self):
+        return self.__dirty
+
+    def set_clean(self):
+        self.__dirty = False
 
     def __get_tail_page_idx(self, tid):
         """ Internal Method for info for where to find a record in tail page
