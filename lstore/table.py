@@ -142,15 +142,22 @@ class Table:
                 new_val = columns[indexing_col]
                 self.index.update(indexing_col, old_rec.key, new_val, rid)
 
+    def delete(self, key):
+        indexing_col = self.COL_KEY - Config.N_META_COLS
+        rids = self.index.locate(indexing_col, key)
+
+        for rid in rids:
+            self.index.delete(indexing_col, key, rid)
+            which_p, where_in_p = self.__rid2pos(rid)
+            p = self.buffer[which_p]
+            p.delete(where_in_p)
+
     def add_new_partition(self):
         """ Add a new partition to self.partitions
         Return:
             Reference to the newly created partition object
         """
         self.buffer.new_partition()
-        # self.buffer.append(
-        #     Partition(self.num_columns + Config.N_META_COLS, self.COL_KEY)
-        # )
         return self.buffer[-1]
 
     def __merge(self):

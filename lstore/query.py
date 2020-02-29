@@ -18,7 +18,7 @@ class Query:
     """
 
     def delete(self, key):
-        pass
+        self.table.delete(key)
 
     def insert(self, *columns):
         self.table.insert(*columns)

@@ -174,6 +174,9 @@ class Partition:
 
         self.count_tail_rec += 1
 
+    def delete(self, idx):
+        self.base_page[idx] = [0] + [None] * (self.N_COLS - 1)
+
     def is_dirty(self):
         return self.__dirty
 
