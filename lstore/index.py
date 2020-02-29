@@ -117,7 +117,7 @@ class Index:
         if self.I[column] is None:
             self.I[column] = IOBTree()
             # Queue the column to be indexed
-            if max(self.counts) != 0:
+            if max(self.counts) != 0 and column not in self.to_be_indexed:
                 self.to_be_indexed.append(column)
 
     def drop_index(self, column):

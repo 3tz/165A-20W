@@ -8,10 +8,7 @@ import pickle
 
 class Bufferpool:
     def __init__(self, size, n_cols, key_column, path):
-        self.PATH = path # path of the table
-        if not os.path.exists(path):
-            os.makedirs(path)
-
+        self.PATH = path  # path of the table
         self.MAX_PARTITIONS = size
         self.N_TOTAL_COLS = n_cols
         self.COL_KEY = key_column
@@ -31,8 +28,13 @@ class Bufferpool:
         self.LRU = []
         # TODO: implmenet PIN PAGE
         self.pin_pages = {}
-
-        self.new_partition()
+        # if cannot find the table on disk; initialize one
+        if not os.path.exists(path):
+            os.makedirs(path)
+            self.new_partition()
+        # table files found, initialize self.partitions
+        else:
+            self.partitions = [None] * len(os.listdir(self.PATH))
 
     def __getitem__(self, idx_part):
         """ Return the partition with index @idx_part
@@ -44,6 +46,7 @@ class Bufferpool:
             X dirty[idx]
             X Partitions[idx]
         """
+        # print(self.LRU, self.partitions)
         # convert negative index to non neg
         if idx_part < 0:
             idx_part += len(self.partitions)
@@ -83,6 +86,10 @@ class Bufferpool:
         # Now BP has space, add the new partition
         self.partitions.append(
             Partition(n_cols=self.N_TOTAL_COLS, key_column=self.COL_KEY))
+
+    def flush(self):
+        while len(self.LRU) > 0:
+            self.__evict()
 
     def __evict(self):
         """ Evict the LRU partition.

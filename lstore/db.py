@@ -13,7 +13,8 @@ class Database():
         self.path = path
 
     def close(self):
-        pass
+        for key in self.tables:
+            self.tables[key].close()
 
     def create_table(self, name, num_columns, key):
         """ Creates a new table

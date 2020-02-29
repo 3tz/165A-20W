@@ -3,6 +3,7 @@ from lstore.partition import *
 from lstore.index import Index
 from time import time
 import os
+import pickle
 
 
 class Record:
@@ -40,6 +41,8 @@ class Table:
         self.num_columns = num_columns  # constant; lower b/c of tester calls
         self.COL_KEY = key + Config.N_META_COLS
         self.N_TOTAL_COLS = num_columns + Config.N_META_COLS
+        self.PATH_TABLE = os.path.join(path, name)
+        self.PATH_INDEX = os.path.join(self.PATH_TABLE, 'index')
         self.name = name
 
         self.num_records = 0  # keeps track of # of records & RID
@@ -48,10 +51,14 @@ class Table:
             Config.SIZE_BUFFER,
             self.N_TOTAL_COLS,
             self.COL_KEY,
-            os.path.join(path, name)
+            self.PATH_TABLE
         )
 
-        self.index = Index(self)
+        if not os.path.exists(self.PATH_INDEX):
+            self.index = Index(self)
+        else:
+            with open(self.PATH_INDEX, 'rb') as f:
+                self.index = pickle.load(f)
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -171,6 +178,11 @@ class Table:
             result = results[0]
             total += result.columns[0]
         return total
+
+    def close(self):
+        self.buffer.flush()
+        with open(os.path.join(self.PATH_TABLE, 'index'), 'wb') as f:
+            pickle.dump(self.index, f)
 
     def __rid2pos(self, rid):
         """ Internal Method for info for where to find a record in base page
