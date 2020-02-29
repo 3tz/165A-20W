@@ -100,7 +100,7 @@ class Bufferpool:
         """
         idx_evict = self.LRU.pop(0)
         if self.partitions[idx_evict].is_dirty():
-            # TODO: ADD MERGE HERE BEFORE WRITING TO DISK
+            self.partitions[idx_evict].merge()
             self.partitions[idx_evict].set_clean()
             # it's dirty; # write to disk
             with open(os.path.join(self.PATH, str(idx_evict)), 'wb') as f:

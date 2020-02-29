@@ -160,25 +160,8 @@ class Table:
         self.buffer.new_partition()
         return self.buffer[-1]
 
-    def __merge_partition(self, rid):
-        partitionRid = rid
-        partitionId = 0
-        while (partitionRid > 512):
-            partitionRid -= 512
-            partitionId += 1
-        new_base_page = Page(self.buffer[partitionId].N_COLS)
-        new_base_page = self.buffer[partitionId].based_page()
-        old_base_page = self.buffer[partitionId].based_page()
-        tb = Table(self.name, self.num_columns, self.COL_KEY, "/" + self.name)
-        for i in range(len(old_base_page)):
-            # new_base_page[i] = [None]*2 + 0
-            indirection = old_base_page[i, 0]
-            new_base_page[i] = tb[indirection]
-
-    def __merge(self):
-
-        self
-        pass
+    def __merge(self, idx_part):
+        self.buffer[idx_part].merge()
 
     def sum(self, start_range, end_range, aggregate_column_index):
         """ Aggregates column data within the key range given.

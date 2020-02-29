@@ -41,6 +41,9 @@ class Partition:
         self.base_page = Page(n_cols)
         self.tail_pages = [Page(n_cols)]
 
+        # list of records that have been updated in the base page
+        self.updated_idxs = set()
+
     def has_capacity(self):
         """
         Returns:
@@ -107,6 +110,7 @@ class Partition:
                 a column, no update will be made to it.
                 Ex: [None, None, None, 14]
         """
+        self.updated_idxs.add(idx)
         self.__dirty = True
         # Get encoding in base-10
         # Also, notice that encoding only covers userdefined columns
@@ -176,6 +180,38 @@ class Partition:
 
     def delete(self, idx):
         self.base_page[idx] = [0] + [None] * (self.N_COLS - 1)
+        if idx in self.updated_idxs:
+            self.updated_idxs.remove(idx)
+
+    def merge(self):
+        """ merge tail pages with base page
+        """
+        # for every base page index that has been updated
+        while len(self.updated_idxs) > 0:
+            # base page idx of the record that has been updated
+            idx = self.updated_idxs.pop()
+            tid = self.base_page[idx, Config.COL_IDR]
+            assert(tid != 0)
+
+            which_tp, where_in_tp = self.__get_tail_page_idx(tid)
+            tp = self.tail_pages[which_tp]
+            enc = tp[where_in_tp, Config.COL_ENC]
+            enc = [int(i) for i in list(format(enc, '0%db' % self.N_COLS))]
+
+            # New record merged from the tail pages which will replace the
+            # current record in the base page
+            # idr, rid, ts, enc
+            merged_rec = [0, None, None, 0]
+            for i in range(4, self.N_COLS):
+                # If there has been an update, take it from TP
+                if enc[i]:
+                    merged_rec.append(tp[where_in_tp, i])
+                # if not, stay the same as in the base page
+                else:
+                    merged_rec.append(None)
+            self.base_page[idx] = merged_rec
+        # clear tail page
+        self.tail_pages = [Page(self.N_COLS)]
 
     def is_dirty(self):
         return self.__dirty
