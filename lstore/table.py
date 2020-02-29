@@ -190,6 +190,8 @@ class Table:
         self.buffer.flush()
         with open(os.path.join(self.PATH_TABLE, 'index'), 'wb') as f:
             pickle.dump(self.index, f)
+        with open(os.path.join(self.PATH_TABLE, 'meta'), 'wb') as f:
+            pickle.dump([self.num_columns, self.COL_KEY-Config.N_META_COLS], f)
 
     def __rid2pos(self, rid):
         """ Internal Method for info for where to find a record in base page

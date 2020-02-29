@@ -1,4 +1,5 @@
 import os
+import pickle
 from lstore.table import Table
 
 
@@ -28,6 +29,14 @@ class Database():
         Returns:
             Table obj of the table that was added to the DB.
         """
+        table = Table(name, num_columns, key, self.path)
+        self.tables[name] = table
+        return table
+
+    def get_table(self, name):
+        with open(os.path.join(self.path, name, 'meta'), 'rb') as f:
+            num_columns, key = pickle.load(f)
+
         table = Table(name, num_columns, key, self.path)
         self.tables[name] = table
         return table
