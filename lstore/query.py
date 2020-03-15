@@ -29,6 +29,9 @@ class Query:
     def update(self, key, *columns):
         self.table.update(key, *columns)
 
+    def increment(self, key, column):
+        return self.table.increment(key, column)
+
     """
     :param start_range: int         # Start of the key range to aggregate
     :param end_range: int           # End of the key range to aggregate

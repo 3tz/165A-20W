@@ -152,6 +152,26 @@ class Table:
             p = self.buffer[which_p]
             p.delete(where_in_p)
 
+    def increment(self, key, column):
+        """ Increment one column of the record
+         Arguments:
+            key:
+                The primary of key of the record to increment
+            column:
+                The column to increment
+         Returns:
+             True is increment is successful; false if no record matches key
+         """
+        r = self.select(
+            key, self.COL_KEY - Config.N_META_COLS, [1] * self.num_columns)
+        if len(r) > 0:
+            r = r[0]
+            updated_columns = [None] * self.num_columns
+            updated_columns[column] = r.columns[column] + 1
+            self.update(key, *updated_columns)
+            return True
+        return False
+
     def add_new_partition(self):
         """ Add a new partition to self.partitions
         Return:
