@@ -211,6 +211,7 @@ class Partition:
                     merged_rec.append(None)
             self.base_page[idx] = merged_rec
         # clear tail page
+        self.count_tail_rec = 0
         self.tail_pages = [Page(self.N_COLS)]
 
     def is_dirty(self):
