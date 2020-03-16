@@ -4,9 +4,12 @@ from time import process_time
 from random import choice, randrange
 
 # Student Id and 4 grades
-db = Database()
+path = 'db'
 indexing_col = 0
+db = Database()
+db.open(path)
 grades_table = db.create_table('Grades', 5, indexing_col)
+
 query = Query(grades_table)
 keys = []
 
