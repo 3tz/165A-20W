@@ -74,6 +74,7 @@ class Table:
             queries: list
                 List of query functions and their arguments
         """
+        cur_num_record = self.num_records
         for i, (query, args) in enumerate(queries):
             # Require X lock
             if query.__name__ in ['delete', 'update', 'increment', 'insert']:
@@ -81,7 +82,8 @@ class Table:
                     # new rid is num_records + 1
                     # but dont increment the counter here since it will be
                     #   added one later in the actual insertion
-                    rid = self.num_records + 1
+                    cur_num_record += 1
+                    rid = cur_num_record
                 else:
                     rid = args[0]
                 # check if the lock has been acquired
@@ -89,7 +91,7 @@ class Table:
                     # rid has been locked, release the previous ones & return F
                     if rid in self.lock_man:
                         #  Abbborrt
-                        self.release_lock(queries[:i])
+                        self.release_lock(queries[:i], cur_num_record)
                         return False
                     #
                     self.lock_man[rid] = 'X' # (threading.Lock(), 'X')
@@ -110,11 +112,23 @@ class Table:
             else:
                 raise ValueError('Unknown query function %s' % query.__name__)
 
-    def release_lock(self, queries):
+    def release_lock(self, queries, cur_num_record):
         """ Release all of the locks present in @queries
         """
         for query, args in enumerate(queries):
-            pass
+            if query.__name__ in ['delete', 'update', 'increment', 'insert']:
+                if query.__name__ == 'insert':
+
+                    rid = self.cur_num_record
+                    cur_num_record -= 1
+                else:
+                    rid = args[0]
+                cur_val = self.lock_man(rid)
+                if(cur_val == 1 || cur_val == 'X'):
+                    del self.lock_man[rid]
+            else:
+                raise ValueError('Unknown query function %s' % query.__name__)
+
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
