@@ -1,7 +1,4 @@
-from lstore.table import Table, Record
-from lstore.index import Index
-import time
-
+from lstore.config import Config
 
 class Query:
     """ This is just a wrapper class of Table methods. See table.py for actual
@@ -39,4 +36,14 @@ class Query:
     """
 
     def sum(self, start_range, end_range, aggregate_column_index):
-        return self.table.sum(start_range, end_range, aggregate_column_index)
+        indexing_col = self.table.COL_KEY - Config.N_META_COLS
+        query_columns = [0] * self.table.num_columns
+        query_columns[aggregate_column_index] = 1
+        total = 0
+        for keyval in range(start_range, end_range+1):
+            results = self.select(keyval, indexing_col, query_columns)
+            if len(results) == 0:
+                continue
+            result = results[0]
+            total += result.columns[0]
+        return total

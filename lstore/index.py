@@ -37,18 +37,19 @@ class Index:
             - rid: int
                 RID of the value in the database.
         """
-        self.__index_from_db()
+        with self.__lock:
+            self.__index_from_db()
 
-        if self.I[column] is not None:
-            self.counts[column] += 1
-            try:
-                # assume value exists
-                self.I[column][value].append(rid)
-            except KeyError:
-                # value doesn't yet exist, so create one
-                self.I[column][value] = [rid]
-        else:
-            raise KeyError
+            if self.I[column] is not None:
+                self.counts[column] += 1
+                try:
+                    # assume value exists
+                    self.I[column][value].append(rid)
+                except KeyError:
+                    # value doesn't yet exist, so create one
+                    self.I[column][value] = [rid]
+            else:
+                raise KeyError
 
     def delete(self, column, value, rid):
         """ Delete @rid from key @value.
@@ -60,9 +61,10 @@ class Index:
             - rid: int
                 RID of the value in the database.
         """
-        self.__index_from_db()
-        if self.I[column]:
-            self.I[column][value].remove(rid)
+        with self.__lock:
+            self.__index_from_db()
+            if self.I[column]:
+                self.I[column][value].remove(rid)
 
     def update(self, column, old_value, new_value, rid):
         """ Remove @rid from key @old_value, and insert @rid to key @new_value
@@ -76,8 +78,9 @@ class Index:
         - rid: int
             RID of the value in the database.
         """
-        self.delete(column, old_value, rid)
-        self.insert(column, new_value, rid)
+        with self.__lock:
+            self.delete(column, old_value, rid)
+            self.insert(column, new_value, rid)
 
     def locate(self, column, value):
         """ Locate the RIDs of the records that match @value in @column
@@ -89,11 +92,12 @@ class Index:
         Returns:
             List of RIDs of all records that match @value
         """
-        self.__index_from_db()
-        try:
-            return self.I[column][value]
-        except KeyError:
-            return []
+        with self.__lock:
+            self.__index_from_db()
+            try:
+                return self.I[column][value]
+            except KeyError:
+                return []
 
     def locate_range(self, column, begin, end):
         """ Locate the RIDs of the records that have values between @begin and
@@ -109,11 +113,12 @@ class Index:
             List of RIDs of all records with values in column @column between
                 @begin and @end.
         """
-        return list(
-            chain.from_iterable(
-                self.I[column].values(begin, end, excludemax=True)
+        with self.__lock:
+            return list(
+                chain.from_iterable(
+                    self.I[column].values(begin, end, excludemax=True)
+                )
             )
-        )
 
     def create_index(self, column):
         """ Create index on column @column
@@ -127,12 +132,14 @@ class Index:
     def drop_index(self, column):
         """ Delete index on column @column
         """
-        self.I[column] = None
+        with self.__lock:
+            self.I[column] = None
 
     def indexed_eh(self, column):
         """ whether @column is indexed
         """
-        return self.I[column] is not None
+        with self.__lock:
+            return self.I[column] is not None
 
     def __index_from_db(self):
         """ add data from db to indexing
@@ -156,4 +163,4 @@ class Index:
                         # value doesn't yet exist, so create one
                         self.I[column][val] = [rid]
 
-        self.to_be_indexed = []
+            self.to_be_indexed = []

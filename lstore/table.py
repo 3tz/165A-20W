@@ -65,7 +65,7 @@ class Table:
         else:
             with open(self.PATH_INDEX, 'rb') as f:
                 self.index = pickle.load(f)
-        self.index.init_lock(self.__lock_index)
+        self.index.init_lock(threading.RLock())
 
     def check_n_lock(self, queries):
         """
@@ -300,29 +300,6 @@ class Table:
 
     def __merge(self, idx_part):
         self.buffer[idx_part].merge()
-
-    def sum(self, start_range, end_range, aggregate_column_index):
-        """ Aggregates column data within the key range given.
-
-        Arguments:
-            - start_range: int
-                Beginning key.
-            - end_range: int
-                Ending key
-            - aggregate_column_index: int
-                Index of the column to be aggregated
-        """
-        indexing_col = self.COL_KEY - Config.N_META_COLS
-        query_columns = [0] * self.num_columns
-        query_columns[aggregate_column_index] = 1
-        total = 0
-        for keyval in range(start_range, end_range+1):
-            results = self.select(keyval, indexing_col, query_columns)
-            if len(results) == 0 :
-                continue
-            result = results[0]
-            total += result.columns[0]
-        return total
 
     def close(self):
         self.buffer.flush()

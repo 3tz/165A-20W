@@ -25,19 +25,3 @@ class Transaction:
         # pre-check failure; locks released and return false
 
         return self.table.check_n_lock(self.queries)
-        # if not self.table.check_n_lock(self.queries):
-        #     return self.__abort()
-        # # pre-check success; commit queries
-        # return self.__commit()
-    #
-    # def __abort(self):
-    #     return False
-    #
-    # def __commit(self):
-    #
-    #     for query, args in self.queries:
-    #         query(*args)
-    #     # Also release the locks
-    #     self.table.release_lock(self.queries)
-    #     return True
-    #
