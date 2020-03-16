@@ -52,7 +52,7 @@ class Table:
         self.glb_locks = {}
         self.__lock = threading.Lock()  # lock for accessing lock manager
         self.__lock_n_rec = threading.Lock()
-
+        self.__lock_index = threading.Lock()
         self.buffer = Bufferpool(
             Config.SIZE_BUFFER,
             self.N_TOTAL_COLS,
@@ -65,6 +65,7 @@ class Table:
         else:
             with open(self.PATH_INDEX, 'rb') as f:
                 self.index = pickle.load(f)
+        self.index.init_lock(self.__lock_index)
 
     def check_n_lock(self, queries):
         """

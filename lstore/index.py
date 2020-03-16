@@ -22,6 +22,10 @@ class Index:
         # list of columns that have been initialized indexing but still need to
         #   read from the DB
         self.to_be_indexed = []
+        self.__lock = None
+
+    def init_lock(self, lock):
+        self.__lock = lock
 
     def insert(self, column, value, rid):
         """ Insert @rid with key @value.

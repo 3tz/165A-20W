@@ -1,3 +1,5 @@
+import threading
+
 from lstore.partition import Partition
 import os
 import pickle
@@ -12,7 +14,7 @@ class Bufferpool:
         self.MAX_PARTITIONS = size
         self.N_TOTAL_COLS = n_cols
         self.COL_KEY = key_column
-
+        self.__lock = threading.Lock()
         # Vals:
         #    - Partition obj: partition is in bufferpool
         #    - None: partition on disk
@@ -46,30 +48,31 @@ class Bufferpool:
             X dirty[idx]
             X Partitions[idx]
         """
-        # print(self.LRU, self.partitions)
-        # convert negative index to non neg
-        if idx_part < 0:
-            idx_part += len(self.partitions)
-        # trying to access a partition that doesn't exist
-        if idx_part >= len(self.partitions):
-            raise IndexError
-        # If already in the LRU array, move it to the end
-        # Don't need to care about limit since we are not adding things here
-        if idx_part in self.LRU:
-            self.LRU.remove(idx_part)
-            self.LRU.append(idx_part)
-            assert(len(self.LRU) <= self.MAX_PARTITIONS)
-        # not in the LRU, load from the disk
-        else:
-            # if buffer limit reached, evict
-            if len(self.LRU) == self.MAX_PARTITIONS:
-                self.__evict()
-            # buffer has space now, just append to the end
-            self.LRU.append(idx_part)
-            with open(os.path.join(self.PATH, str(idx_part)), 'rb') as f:
-                self.partitions[idx_part] = pickle.load(f)
+        with self.__lock:
+            # print(self.LRU, self.partitions)
+            # convert negative index to non neg
+            if idx_part < 0:
+                idx_part += len(self.partitions)
+            # trying to access a partition that doesn't exist
+            if idx_part >= len(self.partitions):
+                raise IndexError
+            # If already in the LRU array, move it to the end
+            # Don't need to care about limit since we are not adding things here
+            if idx_part in self.LRU:
+                self.LRU.remove(idx_part)
+                self.LRU.append(idx_part)
+                assert(len(self.LRU) <= self.MAX_PARTITIONS)
+            # not in the LRU, load from the disk
+            else:
+                # if buffer limit reached, evict
+                if len(self.LRU) == self.MAX_PARTITIONS:
+                    self.__evict()
+                # buffer has space now, just append to the end
+                self.LRU.append(idx_part)
+                with open(os.path.join(self.PATH, str(idx_part)), 'rb') as f:
+                    self.partitions[idx_part] = pickle.load(f)
 
-        return self.partitions[idx_part]
+            return self.partitions[idx_part]
 
     def new_partition(self):
         """ Add a new partition to the DB. New partition will be added to the
