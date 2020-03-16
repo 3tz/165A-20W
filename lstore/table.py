@@ -140,7 +140,7 @@ class Table:
                         # It's an S lock, so let's own it too
                         else:
                             self.glb_locks[rid] += 1
-                            own_locks[rid] += 1
+                            own_locks[rid] = 1
                     elif rid not in self.glb_locks and rid not in own_locks:
                         own_locks[rid] = 1
                         self.glb_locks[rid] = 1
