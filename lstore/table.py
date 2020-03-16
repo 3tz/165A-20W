@@ -4,7 +4,7 @@ from lstore.index import Index
 from time import time
 import os
 import pickle
-
+import threading
 
 class Record:
     def __init__(self, rid, key, columns):
@@ -47,6 +47,11 @@ class Table:
 
         self.num_records = 0  # keeps track of # of records & RID
 
+        # Key:   rid
+        # Value: (threading.Lock, lock_type) where lock_type in ['S', 'X']
+        self.lock_man = {}
+        self.__lock = threading.Lock() # lock for accessing lock manager
+
         self.buffer = Bufferpool(
             Config.SIZE_BUFFER,
             self.N_TOTAL_COLS,
@@ -59,6 +64,46 @@ class Table:
         else:
             with open(self.PATH_INDEX, 'rb') as f:
                 self.index = pickle.load(f)
+
+    def check_n_lock(self, queries):
+        """
+        delete, insert, update, increment: X lock
+        select: S lock
+
+        Arguments:
+            queries: list
+                List of query functions and their arguments
+        """
+        for i, (query, args) in enumerate(queries):
+            # Require X lock
+            if query.__name__ in ['delete', 'update', 'increment', 'insert']:
+                if query.__name__ == 'insert':
+                    # new rid is num_records + 1
+                    # but dont increment the counter here since it will be
+                    #   added one later in the actual insertion
+                    rid = self.num_records + 1
+                else:
+                    rid = args[0]
+                # check if the lock has been acquired
+                with self.__lock:
+                    # rid has been locked, release the previous ones & return F
+                    if rid in self.lock_man:
+                        self.release_lock(queries[:i])
+                        return False
+
+                    self.lock_man[rid] = 'X' # (threading.Lock(), 'X')
+
+            elif query.__name__ == 'select':
+                pass
+            else:
+                raise ValueError('Unknown query function %s' % query.__name__)
+
+    def release_lock(self, queries):
+        """ Release all of the locks present in @queries
+        """
+        for query, args in enumerate(queries):
+            pass
+
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page

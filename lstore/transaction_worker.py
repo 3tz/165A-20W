@@ -1,12 +1,9 @@
-from template.table import Table, Record
-from template.index import Index
-
 class TransactionWorker:
 
     """
     # Creates a transaction worker object.
     """
-    def __init__(self, transactions = []):
+    def __init__(self, transactions=[]):
         self.stats = []
         self.transactions = transactions
         self.result = 0

@@ -1,6 +1,3 @@
-from template.table import Table, Record
-from template.index import Index
-
 class Transaction:
 
     """
@@ -8,7 +5,7 @@ class Transaction:
     """
     def __init__(self):
         self.queries = []
-        pass
+        self.table = None
 
     """
     # Adds the given query to this transaction
@@ -20,20 +17,28 @@ class Transaction:
     def add_query(self, query, *args):
         self.queries.append((query, args))
 
-    # If you choose to implement this differently this method must still return True if transaction commits or False on abort
+    # If you choose to implement this differently this method must still
+    # return True if transaction commits or False on abort
     def run(self):
-        for query, args in self.queries:
-            result = query(*args)
-            # If the query has failed the transaction should abort
-            if result == False:
-                return self.abort()
-        return self.commit()
+        # do a pre-check of availability of the locks by trying to lock
+        # We can assume a transaction will access only one table for this MS
+        self.table = self.queries[0].table
 
-    def abort(self):
-        #TODO: do roll-back and any other necessary operations
+        # pre-check failure; locks released and return false
+        if not self.table.check_n_lock(self.queries):
+            return self.__abort()
+
+        # pre-check success; commit queries
+        return self.__commit()
+
+    def __abort(self):
         return False
 
-    def commit(self):
-        # TODO: commit to database
+    def __commit(self):
+
+        for query, args in self.queries:
+            query(*args)
+        # Also release the locks
+        self.table.release_lock(self.queries)
         return True
 
