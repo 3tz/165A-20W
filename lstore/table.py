@@ -167,7 +167,11 @@ class Table:
                 if l == 1:
                     del self.glb_locks[rid]
                 else:
-                    self.glb_locks[rid] -= 1
+                    while l > 0:
+                        l -= 1
+                        self.glb_locks[rid] -= 1
+                    if self.glb_locks[rid] == 1:
+                        del self.glb_locks[rid]
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
