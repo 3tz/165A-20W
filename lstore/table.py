@@ -88,13 +88,25 @@ class Table:
                 with self.__lock:
                     # rid has been locked, release the previous ones & return F
                     if rid in self.lock_man:
+                        #  Abbborrt
                         self.release_lock(queries[:i])
                         return False
-
+                    #
                     self.lock_man[rid] = 'X' # (threading.Lock(), 'X')
-
+            # ONly need a S lock
             elif query.__name__ == 'select':
-                pass
+                # check if the lock has been acquired
+                with self.__lock:
+                    # rid has been locked, check what lock it has
+                    if rid in self.lock_man:
+                        lock_type = self.lock_man[rid]
+                        if lock_type == 'X':
+                            #  Abbborrt
+                            self.release_lock(queries[:i])
+                            return False
+                        self.lock_man[rid] += 1
+                    else:
+                        self.lock_man[rid] = 1
             else:
                 raise ValueError('Unknown query function %s' % query.__name__)
 
@@ -103,7 +115,6 @@ class Table:
         """
         for query, args in enumerate(queries):
             pass
-
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -117,7 +128,7 @@ class Table:
         # Thus, there's no need to write anything for these two meta-cols since
         #    they are already zeros by default in the page.
 
-        data = [None, self.num_records+1, int(time()), None] # meta columns
+        data = [None, self.num_records+1, int(time()), None]  # meta columns
         data += columns   # user columns
         p = self.buffer[-1]  # current partition
         success = p.write(*data)
