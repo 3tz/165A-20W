@@ -6,12 +6,12 @@ import os
 import pickle
 import threading
 
+
 class Record:
     def __init__(self, rid, key, columns):
         self.rid = rid
         self.key = key
         self.columns = columns
-
     def getcolumnvalue(self, index):
         return self.columns[index]
 
@@ -45,12 +45,13 @@ class Table:
         self.PATH_INDEX = os.path.join(self.PATH_TABLE, 'index')
         self.name = name
 
-        self.num_records = 0  # keeps track of # of records & RID
+        self.__num_records = 0  # keeps track of # of records & RID
 
         # Key:   rid
         # Value: (threading.Lock, lock_type) where lock_type in ['S', 'X']
-        self.lock_man = {}
-        self.__lock = threading.Lock() # lock for accessing lock manager
+        self.glb_locks = {}
+        self.__lock = threading.Lock()  # lock for accessing lock manager
+        self.__lock_n_rec = threading.Lock()
 
         self.buffer = Bufferpool(
             Config.SIZE_BUFFER,
@@ -74,61 +75,98 @@ class Table:
             queries: list
                 List of query functions and their arguments
         """
-        cur_num_record = self.num_records
+        own_locks = {}
         for i, (query, args) in enumerate(queries):
             # Require X lock
             if query.__name__ in ['delete', 'update', 'increment', 'insert']:
+                # get the rid that it performs on
                 if query.__name__ == 'insert':
                     # new rid is num_records + 1
                     # but dont increment the counter here since it will be
                     #   added one later in the actual insertion
-                    cur_num_record += 1
-                    rid = cur_num_record
+                    rid = self.get_num_rec() + 1
                 else:
-                    rid = args[0]
+                    rid = self.index.locate(0, args[0])[0]
                 # check if the lock has been acquired
                 with self.__lock:
-                    # rid has been locked, release the previous ones & return F
-                    if rid in self.lock_man:
+                    if rid in self.glb_locks and rid in own_locks:
+                        l = self.glb_locks[rid]
+                        # want to make sure it's an X lock
+                        if l == 'X':
+                            pass
+                        # it's an S lock
+                        else:
+                            # only this thread owns it
+                            if l == 1:
+                                own_locks[rid] = 'X'
+                                self.glb_locks[rid] = 'X'
+                            else:
+                                del own_locks[rid]
+                                self.glb_locks[rid] -= 1
+                                self.release_lock(own_locks)
+                                return False
+                    # rid has been locked
+                    elif rid in self.glb_locks and rid not in own_locks:
                         #  Abbborrt
-                        self.release_lock(queries[:i], cur_num_record)
+                        self.release_lock(own_locks)
                         return False
-                    #
-                    self.lock_man[rid] = 'X' # (threading.Lock(), 'X')
+                    elif rid not in self.glb_locks and rid not in own_locks:
+                        own_locks[rid] = 'X'
+                        self.glb_locks[rid] = 'X'  # (threading.Lock(), 'X')
+                    else:
+                        raise ValueError('Impossible case')
+
             # ONly need a S lock
             elif query.__name__ == 'select':
-                # check if the lock has been acquired
+                rid = self.index.locate(0, args[0])[0]
                 with self.__lock:
-                    # rid has been locked, check what lock it has
-                    if rid in self.lock_man:
-                        lock_type = self.lock_man[rid]
-                        if lock_type == 'X':
+                    if rid in self.glb_locks and rid in own_locks:
+                        l = self.glb_locks[rid]
+                        # want to make sure it's an X lock
+                        if l == 'X':
+                            pass
+                        # it's an S lock， increment
+                        else:
+                            own_locks[rid] += 1
+                            self.glb_locks[rid] += 1
+                    # rid has been locked
+                    elif rid in self.glb_locks and rid not in own_locks:
+                        l = self.glb_locks[rid]
+                        # abort since someone else has an X on it
+                        if l == 'X':
                             #  Abbborrt
-                            self.release_lock(queries[:i])
-                            return False
-                        self.lock_man[rid] += 1
+                            self.release_lock(own_locks)
+                        # It's an S lock, so let's own it too
+                        else:
+                            self.glb_locks[rid] += 1
+                            own_locks[rid] += 1
+                    elif rid not in self.glb_locks and rid not in own_locks:
+                        own_locks[rid] = 1
+                        self.glb_locks[rid] = 1
                     else:
-                        self.lock_man[rid] = 1
+                        raise ValueError('Impossible case')
             else:
                 raise ValueError('Unknown query function %s' % query.__name__)
+        for query, args in queries:
+            query(*args)
+        self.release_lock(own_locks)
+        return True
 
-    def release_lock(self, queries, cur_num_record):
+    def release_lock(self, own_locks):
         """ Release all of the locks present in @queries
         """
-        for query, args in enumerate(queries):
-            if query.__name__ in ['delete', 'update', 'increment', 'insert']:
-                if query.__name__ == 'insert':
-
-                    rid = self.cur_num_record
-                    cur_num_record -= 1
-                else:
-                    rid = args[0]
-                cur_val = self.lock_man(rid)
-                if(cur_val == 1 || cur_val == 'X'):
-                    del self.lock_man[rid]
+        for rid in own_locks:
+            l = own_locks[rid]
+            # simply release it from the glb locks
+            if l == 'X':
+                with self.__lock:
+                    del self.glb_locks[rid]
             else:
-                raise ValueError('Unknown query function %s' % query.__name__)
-
+                # this means this is the only one that owns it
+                if l == 1:
+                    del self.glb_locks[rid]
+                else:
+                    self.glb_locks[rid] -= 1
 
     def insert(self, *columns):
         """ Write the meta-columns & @columns to the correct page
@@ -142,18 +180,18 @@ class Table:
         # Thus, there's no need to write anything for these two meta-cols since
         #    they are already zeros by default in the page.
 
-        data = [None, self.num_records+1, int(time()), None]  # meta columns
+        rid = self.inc_rec()
+        data = [None, rid, int(time()), None]  # meta columns
         data += columns   # user columns
         p = self.buffer[-1]  # current partition
         success = p.write(*data)
         # Current Partition.base_page is full
         if not success:
             self.add_new_partition().write(*data)
-        self.num_records += 1
 
         for i, val in enumerate(columns):
             if self.index.indexed_eh(i):
-                self.index.insert(i, val, self.num_records)
+                self.index.insert(i, val, rid)
 
     def select(self, key, indexing_col, query_columns):
         """ Read a record whose key matches the specified @key.
@@ -221,6 +259,15 @@ class Table:
             which_p, where_in_p = self.__rid2pos(rid)
             p = self.buffer[which_p]
             p.delete(where_in_p)
+
+    def inc_rec(self):
+        with self.__lock_n_rec:
+            self.__num_records += 1
+            return self.__num_records
+
+    def get_num_rec(self):
+        with self.__lock_n_rec:
+            return self.__num_records
 
     def increment(self, key, column):
         """ Increment one column of the record
