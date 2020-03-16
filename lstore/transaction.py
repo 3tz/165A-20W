@@ -1,5 +1,4 @@
 class Transaction:
-
     """
     # Creates a transaction object.
     """
@@ -22,12 +21,10 @@ class Transaction:
     def run(self):
         # do a pre-check of availability of the locks by trying to lock
         # We can assume a transaction will access only one table for this MS
-        self.table = self.queries[0].table
-
+        self.table = self.queries[0][0].__self__.table
         # pre-check failure; locks released and return false
         if not self.table.check_n_lock(self.queries):
             return self.__abort()
-
         # pre-check success; commit queries
         return self.__commit()
 
